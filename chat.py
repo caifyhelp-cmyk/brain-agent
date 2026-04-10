@@ -199,12 +199,16 @@ def generate_opening_message(section: str) -> str:
     }
     context = context_map.get(section, '마케팅')
 
+    # 콘텐츠 섹션은 전용 프롬프트로 분기
+    if section in ('content_youtube', 'content_blog'):
+        return _generate_content_opening(section, client)
+
     prompt = f"""인하우스 마케터가 직원에게 실제 클라이언트 케이스를 던지는 상황이다.
 목적: 직원이 '{context}'을 직접 기획해보는 훈련.
 
 케이스 조건:
 - 다양한 업종 (헬스장, 스킨케어, 학원, 식당, SaaS, 인테리어, 의류 등 — 매번 다르게)
-- 구체적인 수치와 상황 포함 (월 매출, 팔로워 수, 전환율 등)
+- 마케팅/기획 관련 수치 포함 (월 매출, 예산, 고객 수, 캠페인 성과 등 — 전환율에 고착 금지)
 - 실제 마케터가 맞닥뜨리는 고민 담기
 - 보유 자산 포함 (기존 고객 DB, SNS, 후기, 파트너십 등)
 
@@ -217,6 +221,74 @@ def generate_opening_message(section: str) -> str:
         messages=[{"role": "user", "content": prompt}],
         max_tokens=350,
         temperature=0.9
+    )
+    return response.choices[0].message.content
+
+
+def _generate_content_opening(section: str, client) -> str:
+    """콘텐츠 전용 케이스 — 상황 유형을 다양하게 강제"""
+    import random
+
+    content_type = "유튜브 숏폼 영상" if section == 'content_youtube' else "네이버 블로그"
+
+    # 업종 풀 — 매번 다르게
+    industries = [
+        "필라테스 스튜디오", "동네 카페", "온라인 영어 과외", "중고차 딜러",
+        "펫샵", "네일샵", "한의원", "자동차 튜닝샵", "홈베이킹 클래스",
+        "독립서점", "수제맥주 바", "요가 스튜디오", "키즈 카페", "가구 공방",
+        "스킨케어 브랜드", "파티용품 쇼핑몰", "플로리스트", "닭갈비 식당",
+        "수영 개인레슨", "심리상담 센터", "드라이브인 세차장", "소형 헬스장"
+    ]
+
+    # 콘텐츠 고민 유형 풀 — 다양한 상황
+    challenges = [
+        "조회수는 나오는데 팔로워가 안 늘어남",
+        "영상 올릴 때마다 주제가 달라서 채널 색깔이 없음",
+        "경쟁 채널이랑 내용이 비슷해 보여 차별점이 없음",
+        "조회수도 팔로워도 없는 완전 신규 계정",
+        "예전엔 잘 됐는데 최근 6개월 동안 조회수가 반 토막",
+        "영상 보는 사람은 있는데 문의/구매로 이어지지 않음",
+        "댓글은 많은데 저장이나 공유가 거의 없음",
+        "타깃 고객이 아닌 엉뚱한 사람들이 보고 있음",
+        "콘텐츠 아이디어가 바닥나서 뭘 만들어야 할지 모름",
+        "첫 3초 이탈률이 너무 높음",
+        "업로드 주기가 불규칙해서 구독자 이탈이 심함",
+        "광고는 돌리는데 오가닉 채널이 전혀 성장 안 함"
+    ]
+
+    # 자산 유형 풀
+    assets = [
+        "기존 고객 후기 20여 개, 인스타 팔로워 800명",
+        "네이버 블로그 방문자 하루 200명, 카카오채널 구독자 300명",
+        "유튜브 구독자 500명 (업로드 6개월째 멈춤)",
+        "오프라인 단골 고객 150명, 카카오톡 채널 400명",
+        "인스타 팔로워 2,000명이지만 인게이지먼트율 0.5% 이하",
+        "틱톡 팔로워 3,000명, 유튜브는 신규",
+        "자체 제작 사진/영상 소스 풍부, SNS 미운영",
+        "구글 리뷰 별점 4.8 / 리뷰 80개 보유"
+    ]
+
+    industry = random.choice(industries)
+    challenge = random.choice(challenges)
+    asset = random.choice(assets)
+
+    prompt = f"""인하우스 마케터가 직원에게 {content_type} 기획 훈련 케이스를 던진다.
+
+클라이언트 정보 (이걸 기반으로 케이스 작성):
+- 업종: {industry}
+- 핵심 고민: {challenge}
+- 보유 자산: {asset}
+
+위 정보를 활용해 실제 같은 케이스를 자연스러운 대화체로 구성하라.
+수치를 구체적으로 넣고 (팔로워 수, 운영 기간, 콘텐츠 수 등 — 전환율만 고정 금지),
+마지막은 "{content_type}으로 뭘 기획하겠어?" 형태의 질문으로 끝낼 것.
+한국어로, 280자 이내."""
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=380,
+        temperature=1.0  # 최대 다양성
     )
     return response.choices[0].message.content
 
