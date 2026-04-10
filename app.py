@@ -155,7 +155,16 @@ def api_grow_start():
 
     user_role = 'owner' if is_owner else 'employee'
     conv_id = db.start_conversation(user_name, user_role, topic, full_section)
-    return jsonify({'ok': True, 'conversation_id': conv_id, 'section': full_section})
+
+    # 뇌가 먼저 케이스를 던진다
+    opening = None
+    try:
+        opening = chat_engine.generate_opening_message(full_section)
+        db.save_message(conv_id, 'assistant', opening, '뇌')
+    except Exception as e:
+        print(f"[opening message 오류] {e}")
+
+    return jsonify({'ok': True, 'conversation_id': conv_id, 'section': full_section, 'opening': opening})
 
 
 @app.route('/api/grow/message', methods=['POST'])
@@ -186,6 +195,22 @@ def api_grow_new_case():
     try:
         case = chat_engine.generate_content_case(content_type)
         return jsonify({'ok': True, 'case': case})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/api/grow/new-opening', methods=['POST'])
+def api_grow_new_opening():
+    """새 케이스를 뇌 메시지로 생성하고 대화에 저장"""
+    data = request.json
+    conv_id = int(data.get('conversation_id', 0))
+    section = data.get('section', 'marketing')
+    if not conv_id:
+        return jsonify({'ok': False, 'error': '대화 ID 누락'})
+    try:
+        opening = chat_engine.generate_opening_message(section)
+        db.save_message(conv_id, 'assistant', opening, '뇌')
+        return jsonify({'ok': True, 'reply': opening})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 

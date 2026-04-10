@@ -179,6 +179,40 @@ JSON으로 반환:
         return {"error": "케이스 생성 실패"}
 
 
+def generate_opening_message(section: str) -> str:
+    """세션 시작 시 뇌가 먼저 던지는 케이스 메시지"""
+    client = OpenAI(api_key=get_config().get('openai_api_key'))
+
+    context_map = {
+        'marketing':       '마케팅 전략/채널/타겟 고민',
+        'planning':        '사업 기획/캠페인/신규 서비스',
+        'content_youtube': '유튜브 숏폼 영상 기획',
+        'content_blog':    '네이버 블로그 기획',
+    }
+    context = context_map.get(section, '마케팅')
+
+    prompt = f"""인하우스 마케터가 직원에게 실제 클라이언트 케이스를 던지는 상황이다.
+목적: 직원이 '{context}'을 직접 기획해보는 훈련.
+
+케이스 조건:
+- 다양한 업종 (헬스장, 스킨케어, 학원, 식당, SaaS, 인테리어, 의류 등 — 매번 다르게)
+- 구체적인 수치와 상황 포함 (월 매출, 팔로워 수, 전환율 등)
+- 실제 마케터가 맞닥뜨리는 고민 담기
+- 보유 자산 포함 (기존 고객 DB, SNS, 후기, 파트너십 등)
+
+케이스를 자연스러운 대화체로 던져라.
+형식 예시: "자, 케이스 하나 줄게. [상황 설명]. 이 상황에서 어떻게 하겠어?"
+조건: 한국어로, 250자 이내, 대화체로, 마지막은 반드시 질문으로 끝낼 것."""
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=350,
+        temperature=0.9
+    )
+    return response.choices[0].message.content
+
+
 def extract_patterns_from_conversation(conversation_id: int) -> list:
     """대화에서 패턴 후보 추출"""
     client = OpenAI(api_key=get_config().get('openai_api_key'))

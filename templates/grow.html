@@ -58,18 +58,10 @@
   .btn-enter:disabled { background: #333; cursor: not-allowed; }
   .err { color: #ff6b6b; font-size: 12px; margin-top: 8px; display: none; }
 
-  /* 콘텐츠 탭 케이스 영역 */
-  .case-bar { background: #13131a; border-bottom: 1px solid #2a2a3a; padding: 12px 20px; display: flex; align-items: flex-start; gap: 16px; flex-shrink: 0; }
-  .case-bar.hidden { display: none; }
-  .case-content { flex: 1; }
-  .case-label { font-size: 10px; color: #555; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-  .case-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-  .case-field { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 8px; padding: 10px 12px; }
-  .case-field-label { font-size: 10px; color: #555; margin-bottom: 4px; font-weight: 600; }
-  .case-field-value { font-size: 12px; color: #ccc; line-height: 1.5; }
-  .btn-new-case { background: #1a1a24; border: 1px solid #2a2a3a; color: #888; border-radius: 8px; padding: 8px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; }
+  /* 새 케이스 버튼 */
+  .btn-new-case { background: #1a1a24; border: 1px solid #2a2a3a; color: #666; border-radius: 7px; padding: 5px 12px; font-size: 11px; cursor: pointer; transition: all 0.15s; }
   .btn-new-case:hover { border-color: #6c63ff55; color: #9c93ff; }
-  .case-empty { color: #444; font-size: 13px; }
+  .new-case-bar { padding: 6px 20px; border-top: 1px solid #1a1a24; display: flex; justify-content: flex-end; flex-shrink: 0; }
 
   /* CHAT */
   .chat-wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
@@ -127,8 +119,10 @@
   <span class="logo">🧠 뇌 에이전트</span>
   <a href="/">대시보드</a>
   <a href="/grow" class="active">뇌 성장</a>
+  <a href="/chat">대화</a>
   <a href="/patterns">패턴</a>
-  <a href="/report">리포트</a>
+  <a href="/mine" style="color:#e8b84b;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;">판단 요청</a>
   <a href="/logs" id="nav_logs" class="hidden">로그</a>
   <a href="/review" id="nav_review" class="hidden">패턴 검토{% if pending > 0 %}<span class="badge">{{ pending }}</span>{% endif %}</a>
 </nav>
@@ -198,24 +192,15 @@
     <!-- 채팅 영역 -->
     <div class="chat-wrap hidden" id="chat_area">
 
-      <!-- 콘텐츠 탭 케이스 바 -->
-      <div class="case-bar hidden" id="case_bar">
-        <div class="case-content">
-          <div class="case-label">클라이언트 케이스</div>
-          <div id="case_display" class="case-empty">케이스를 생성하세요</div>
-        </div>
-        <button class="btn-new-case" onclick="loadNewCase()">새 케이스 생성</button>
-      </div>
+      <div class="messages" id="messages"></div>
 
-      <div class="messages" id="messages">
-        <div id="empty_msg" style="text-align:center; color:#333; font-size:13px; padding:60px 20px;">
-          뭐든 꺼내세요.
-        </div>
+      <div class="new-case-bar">
+        <button class="btn-new-case" onclick="loadNewCase()">새 케이스 받기</button>
       </div>
 
       <div class="input-area">
         <div class="input-row">
-          <textarea id="msg_input" placeholder="메시지를 입력하세요..." rows="1"
+          <textarea id="msg_input" placeholder="나라면 이렇게 할 것 같아..." rows="1"
             onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
           <button class="send-btn" id="send_btn" onclick="sendMessage()">
             <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
@@ -299,10 +284,9 @@ function updateEntryUI() {
 
 function resetSession() {
   convId = null;
-  currentCase = null;
   document.getElementById('entry_screen').classList.remove('hidden');
   document.getElementById('chat_area').classList.add('hidden');
-  document.getElementById('messages').innerHTML = `<div id="empty_msg" style="text-align:center;color:#333;font-size:13px;padding:60px 20px;">뭐든 꺼내세요.</div>`;
+  document.getElementById('messages').innerHTML = '';
 }
 
 function togglePin() {
@@ -350,9 +334,10 @@ async function enterSession() {
   document.getElementById('entry_screen').classList.add('hidden');
   document.getElementById('chat_area').classList.remove('hidden');
 
-  // 콘텐츠 탭: 케이스 바 표시
-  const isContent = fullSection().startsWith('content');
-  document.getElementById('case_bar').classList.toggle('hidden', !isContent);
+  // 뇌가 먼저 던진 케이스 표시
+  if (data.opening) {
+    appendMsg('assistant', data.opening, '뇌');
+  }
 
   document.getElementById('msg_input').focus();
 }
@@ -362,54 +347,22 @@ function showEntryErr(msg) {
   el.textContent = msg; el.style.display = 'block';
 }
 
-// 케이스 생성 (콘텐츠 탭)
+// 새 케이스 받기 — 뇌에게 직접 요청
 async function loadNewCase() {
+  if (!convId) return;
   const btn = document.querySelector('.btn-new-case');
-  btn.textContent = '생성 중...'; btn.disabled = true;
+  btn.textContent = '받는 중...'; btn.disabled = true;
 
-  const res = await fetch('/api/grow/new-case', {
+  const res = await fetch('/api/grow/new-opening', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({content_type: currentContentType})
+    body: JSON.stringify({conversation_id: convId, section: fullSection()})
   });
   const data = await res.json();
-  btn.textContent = '새 케이스 생성'; btn.disabled = false;
+  btn.textContent = '새 케이스 받기'; btn.disabled = false;
 
   if (!data.ok) { alert(data.error); return; }
-  currentCase = data.case;
-
-  const fields = [
-    {label: '업종', key: 'industry'},
-    {label: '상황', key: 'situation'},
-    {label: '목표', key: 'goal'},
-    {label: '보유 자산', key: 'assets'},
-    {label: '제약', key: 'constraint'},
-  ];
-
-  document.getElementById('case_display').innerHTML = `
-    <div class="case-grid">
-      ${fields.map(f => `
-        <div class="case-field">
-          <div class="case-field-label">${f.label}</div>
-          <div class="case-field-value">${esc(data.case[f.key] || '-')}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-
-  // 케이스 정보를 채팅에 붙임 (뇌가 맥락 알도록)
-  const caseText = `[새 케이스]\n업종: ${data.case.industry}\n상황: ${data.case.situation}\n목표: ${data.case.goal}\n보유 자산: ${data.case.assets}\n제약: ${data.case.constraint}`;
-  await sendSystemMessage(caseText);
-}
-
-async function sendSystemMessage(text) {
-  // 케이스 정보를 뇌에게 전달 (사용자 이름은 시스템으로)
-  await fetch('/api/grow/message', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({conversation_id: convId, message: text, user_name: '[케이스]', section: fullSection()})
-  });
-  // 뇌 응답은 UI에 표시하지 않음 — 직원이 기획 올리면 그때 피드백
+  appendMsg('assistant', data.reply, '뇌');
 }
 
 function autoResize(el) {
