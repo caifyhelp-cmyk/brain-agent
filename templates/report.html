@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 리포트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.3px; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav .spacer { flex: 1; }
+  nav .gen-btn { background: #2a2a3a; color: #aaa; border: none; padding: 7px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  nav .gen-btn:hover { background: #3a3a4a; color: #fff; }
+
+  main { padding: 32px; max-width: 1000px; margin: 0 auto; }
+  h2 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+
+  .week-tabs { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; }
+  .week-tab { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; background: #1a1a24; border: 1px solid #2a2a3a; color: #888; text-decoration: none; transition: all 0.15s; }
+  .week-tab:hover { border-color: #6c63ff44; color: #ccc; }
+  .week-tab.active { background: #6c63ff22; border-color: #6c63ff; color: #9c93ff; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 20px; }
+  .stat-card .label { font-size: 12px; color: #666; margin-bottom: 8px; }
+  .stat-card .value { font-size: 26px; font-weight: 700; color: #fff; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  .card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 24px; }
+
+  .pattern-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #2a2a3a; font-size: 13px; }
+  .pattern-row:last-child { border-bottom: none; }
+  .pattern-row .cnt { font-size: 18px; font-weight: 700; color: #6c63ff; min-width: 30px; }
+  .pattern-row .rule { color: #ccc; line-height: 1.4; }
+  .pattern-row .cat { font-size: 11px; color: #666; margin-top: 2px; }
+
+  .gap-item { padding: 8px 12px; background: #1f1519; border: 1px solid #3a2a2a; border-radius: 6px; font-size: 13px; color: #e0a0b0; margin-bottom: 8px; line-height: 1.5; }
+  .gap-item:last-child { margin-bottom: 0; }
+
+  .flagged-row { border: 1px solid #2a2a3a; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .flagged-row:last-child { margin-bottom: 0; }
+  .flagged-row .industry { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .flagged-row .judgment { font-size: 14px; color: #ddd; margin-bottom: 6px; line-height: 1.5; }
+  .flagged-row .meta { font-size: 12px; color: #666; display: flex; gap: 12px; }
+  .reviewed-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #51cf6622; color: #51cf66; }
+  .pending-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #ff6b6b22; color: #ff6b6b; }
+
+  .empty { color: #555; font-size: 14px; text-align: center; padding: 40px; }
+
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 13px; display: none; z-index: 100; border-left: 3px solid #6c63ff; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report" class="active">리포트</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/setup">설정</a>
+  <span class="spacer"></span>
+  <button class="gen-btn" onclick="genReport()">이번 주 리포트 생성</button>
+</nav>
+
+<main>
+
+  <!-- 주간 탭 -->
+  {% if all_reports %}
+  <div class="week-tabs">
+    {% for r in all_reports %}
+    <a href="#" class="week-tab {% if r.week_start == (current_report.week_start if current_report else '') %}active{% endif %}"
+       onclick="return false;">{{ r.week_start }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if current_report %}
+
+  <!-- 요약 통계 -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">총 시뮬레이션</div>
+      <div class="value">{{ current_report.report.total_simulations }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">평균 신뢰도</div>
+      <div class="value">{{ current_report.report.avg_confidence }}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">검토 필요</div>
+      <div class="value">{{ current_report.report.flagged_count }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">검토 완료</div>
+      <div class="value">{{ current_report.report.reviewed_count }}</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+
+    <!-- 많이 발동된 패턴 -->
+    <div class="card">
+      <h2>많이 발동된 패턴 Top 5</h2>
+      {% if current_report.report.top_patterns %}
+        {% for p in current_report.report.top_patterns %}
+        <div class="pattern-row">
+          <div class="cnt">{{ p.count }}</div>
+          <div>
+            <div class="rule">{{ p.rule }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">데이터 없음</div>
+      {% endif %}
+    </div>
+
+    <!-- 반복된 패턴 공백 -->
+    <div class="card">
+      <h2>반복된 패턴 공백</h2>
+      {% if current_report.report.recurring_gaps %}
+        {% for g in current_report.report.recurring_gaps %}
+        <div class="gap-item">{{ g }}</div>
+        {% endfor %}
+        <div style="margin-top:16px; font-size:12px; color:#666;">
+          위 공백이 반복되면 새 패턴 추가를 검토하세요.
+        </div>
+      {% else %}
+        <div class="empty" style="padding:20px;">반복된 공백 없음</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- 검토 필요 케이스 -->
+  {% if current_report.report.flagged_cases %}
+  <div class="card">
+    <h2>이번 주 검토 필요 케이스</h2>
+    {% for c in current_report.report.flagged_cases %}
+    <div class="flagged-row">
+      <div class="industry">{{ c.industry }}</div>
+      <div class="judgment">{{ c.judgment }}</div>
+      <div class="meta">
+        <span>신뢰도 {{ c.confidence }}%</span>
+        {% if c.reviewed %}
+        <span class="reviewed-badge">검토 완료</span>
+        {% else %}
+        <span class="pending-badge">검토 대기</span>
+        {% endif %}
+      </div>
+      {% if c.gaps %}
+      <div style="margin-top:8px; font-size:12px; color:#888;">
+        공백: {{ c.gaps|join(' / ') }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty">
+    이번 주 리포트가 없습니다.<br>
+    시뮬레이션을 먼저 실행하고 오른쪽 상단 버튼으로 리포트를 생성하세요.
+  </div>
+  {% endif %}
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+function genReport() {
+  const weekStart = '{{ week_start }}';
+  fetch('/api/generate-report', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({week_start: weekStart})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.status === 'ok') {
+      const t = document.getElementById('toast');
+      t.textContent = '리포트 생성 완료';
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; location.reload(); }, 1200);
+    } else {
+      const t = document.getElementById('toast');
+      t.textContent = d.message;
+      t.style.borderLeftColor = '#ff6b6b';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 2500);
+    }
+  });
+}
+</script>
+
+</body>
+</html>

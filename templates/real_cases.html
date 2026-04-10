@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 실제 사례</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #51cf66; }
+  nav .spacer { flex: 1; }
+  nav .real-btn { background: #1f2d1f; color: #51cf66; border: 1px solid #51cf6633; padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+  nav .real-btn:hover { background: #2a3d2a; }
+  nav .real-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  main { padding: 32px; max-width: 1100px; margin: 0 auto; }
+  h2 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+  .stat-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 20px; }
+  .stat-card .label { font-size: 12px; color: #666; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; color: #fff; }
+  .stat-card .value.ok { color: #51cf66; }
+  .stat-card .value.warn { color: #ff6b6b; }
+
+  .section-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+
+  /* 케이스 카드 */
+  .case-card { border: 1px solid #2a2a3a; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+  .case-card.aligned { border-color: #1a3a2a; }
+  .case-card.flagged { border-color: #3a2020; }
+
+  .case-header { padding: 16px 20px; background: #13131f; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer; user-select: none; }
+  .case-header:hover { background: #1a1a2a; }
+  .case-company { font-size: 14px; font-weight: 700; color: #fff; }
+  .case-industry { font-size: 12px; color: #777; }
+  .case-date { font-size: 11px; color: #555; margin-left: auto; }
+  .expand-icon { font-size: 12px; color: #555; margin-left: 6px; transition: transform 0.2s; }
+  .case-card.open .expand-icon { transform: rotate(180deg); }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .badge-green { background: #51cf6622; color: #51cf66; }
+  .badge-red { background: #ff6b6b22; color: #ff6b6b; }
+  .badge-yellow { background: #fcc41922; color: #fcc419; }
+  .badge-gray { background: #2a2a3a; color: #888; }
+
+  .score-inline { font-size: 13px; font-weight: 700; }
+
+  .case-body { display: none; padding: 0 20px 20px; }
+  .case-card.open .case-body { display: block; }
+
+  /* 3단 섹션 */
+  .body-section { margin-top: 18px; }
+  .body-section-title {
+    font-size: 11px; font-weight: 700; color: #666;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1px solid #2a2a3a;
+  }
+  .body-section-title.blue { color: #74c0fc; border-color: #74c0fc22; }
+  .body-section-title.purple { color: #9c93ff; border-color: #6c63ff22; }
+  .body-section-title.green { color: #51cf66; border-color: #51cf6622; }
+  .body-section-title.red { color: #ff6b6b; border-color: #ff6b6b22; }
+  .body-section-title.yellow { color: #fcc419; border-color: #fcc41922; }
+
+  .scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .scenario-field { background: #0f0f13; border: 1px solid #1f1f2e; border-radius: 6px; padding: 10px 12px; }
+  .scenario-field .field-label { font-size: 10px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .scenario-field .field-value { font-size: 13px; color: #ccc; line-height: 1.6; }
+  .scenario-field.full { grid-column: 1 / -1; }
+
+  .judgment-block { background: #0f0f1a; border: 1px solid #6c63ff22; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .judgment-block .jb-label { font-size: 10px; color: #6c63ff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .judgment-block .jb-value { font-size: 14px; color: #ddd; line-height: 1.7; }
+  .judgment-block .jb-value.action { color: #c0b8ff; }
+  .judgment-block .jb-value.reasoning { color: #aaa; font-size: 13px; }
+
+  .actual-block { background: #0f1a0f; border: 1px solid #51cf6622; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .actual-block .ab-label { font-size: 10px; color: #51cf66; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .actual-block .ab-value { font-size: 13px; color: #b8e8c0; line-height: 1.7; }
+
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .compare-box { background: #0f0f13; border-radius: 6px; padding: 12px; }
+  .compare-box.got { border: 1px solid #51cf6633; }
+  .compare-box.missed { border: 1px solid #ff6b6b33; }
+  .compare-box .cb-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .compare-box.got .cb-title { color: #51cf66; }
+  .compare-box.missed .cb-title { color: #ff6b6b; }
+  .compare-box ul { list-style: none; }
+  .compare-box ul li { font-size: 12px; color: #bbb; padding: 4px 0; border-bottom: 1px solid #1a1a24; line-height: 1.5; }
+  .compare-box ul li:last-child { border-bottom: none; }
+  .compare-box ul li::before { content: "· "; color: #555; }
+
+  .insight-box { background: #12182a; border: 1px solid #74c0fc33; border-radius: 6px; padding: 12px 14px; margin-top: 10px; font-size: 13px; color: #a8d8f0; line-height: 1.7; }
+
+  .score-bar { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+  .score-num { font-size: 22px; font-weight: 700; min-width: 52px; }
+  .bar-bg { flex: 1; height: 5px; background: #2a2a3a; border-radius: 3px; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+
+  .pattern-chips { margin-top: 10px; }
+  .pattern-chip { display: inline-block; background: #1a1530; border: 1px solid #6c63ff33; border-radius: 4px; padding: 3px 10px; font-size: 11px; color: #9c93ff; margin: 2px; }
+
+  .dismiss-btn { background: #2a2a3a; color: #888; border: none; border-radius: 5px; padding: 6px 14px; font-size: 12px; cursor: pointer; margin-top: 14px; }
+  .dismiss-btn:hover { background: #3a3a4a; color: #fff; }
+
+  .action-bar { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+
+  .add-pattern-btn { background: #1a1530; color: #9c93ff; border: 1px solid #6c63ff55; border-radius: 5px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .add-pattern-btn:hover { background: #251e45; border-color: #9c93ff; }
+
+  .inline-pattern-form { margin-top: 12px; background: #12101e; border: 1px solid #6c63ff33; border-radius: 8px; padding: 14px 16px; display: none; }
+  .inline-pattern-form.open { display: block; }
+  .inline-pattern-form label { font-size: 11px; color: #777; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+  .inline-pattern-form select { background: #1a1a2a; color: #ccc; border: 1px solid #3a3a5a; border-radius: 5px; padding: 6px 10px; font-size: 12px; margin-bottom: 10px; width: 100%; }
+  .inline-pattern-form textarea { background: #1a1a2a; color: #ddd; border: 1px solid #3a3a5a; border-radius: 5px; padding: 8px 10px; font-size: 13px; width: 100%; resize: vertical; min-height: 72px; line-height: 1.6; margin-bottom: 10px; }
+  .inline-pattern-form textarea:focus { outline: none; border-color: #6c63ff; }
+  .form-btns { display: flex; gap: 8px; }
+  .btn-save { background: #6c63ff; color: #fff; border: none; border-radius: 5px; padding: 7px 18px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-save:hover { background: #7c73ff; }
+  .btn-cancel { background: transparent; color: #666; border: none; font-size: 12px; cursor: pointer; padding: 7px 10px; }
+  .btn-cancel:hover { color: #aaa; }
+
+  .missed-add-btn { font-size: 10px; color: #6c63ff; cursor: pointer; border: 1px solid #6c63ff44; border-radius: 3px; padding: 1px 6px; margin-left: 6px; background: transparent; vertical-align: middle; }
+  .missed-add-btn:hover { background: #1a1530; }
+
+  .stat-card.clickable { cursor: pointer; transition: border-color 0.15s; }
+  .stat-card.clickable:hover { border-color: #ff6b6b88; }
+
+  .empty { color: #555; font-size: 14px; text-align: center; padding: 48px; }
+
+  #toast { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); background: #1e1e2e; color: #fff; padding: 16px 28px; border-radius: 10px; font-size: 14px; display: none; z-index: 999; border: 1px solid #3a3a5a; border-top: 3px solid #51cf66; max-width: 540px; width: max-content; line-height: 1.7; text-align: center; box-shadow: 0 8px 32px #00000066; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/real-cases" class="active">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/setup">설정</a>
+  <span class="spacer"></span>
+  <button class="real-btn" onclick="reprocessAll()" id="reprocessBtn" style="background:#1a1a2a;color:#9c93ff;border-color:#6c63ff44;margin-right:8px;">기존 사례 재분석</button>
+  <button class="real-btn" onclick="runRealSim()" id="realBtn">실제 사례 10개 실행</button>
+</nav>
+
+<main>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">총 실행</div>
+      <div class="value">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">평균 일치율</div>
+      <div class="value {% if stats.avg_match >= 70 %}ok{% elif stats.avg_match < 50 %}warn{% endif %}">{{ stats.avg_match }}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">판단 일치</div>
+      <div class="value ok">{{ stats.aligned }}</div>
+    </div>
+    <div class="stat-card clickable" onclick="document.getElementById('review-section').scrollIntoView({behavior:'smooth'})" title="클릭하면 리뷰 대상으로 이동">
+      <div class="label">월 리뷰 대상 ↓</div>
+      <div class="value {% if stats.flagged_pending > 0 %}warn{% endif %}">{{ stats.flagged_pending }}</div>
+    </div>
+  </div>
+
+  <!-- 월 리뷰 대상 -->
+  {% if flagged %}
+  <div class="section-card" id="review-section">
+    <h2>월 리뷰 대상 — 판단 불일치 / 실패 케이스 ({{ flagged|length }}) &nbsp;<span style="font-size:11px;color:#666;font-weight:400;text-transform:none;letter-spacing:0;">에이전트가 틀린 이유를 패턴으로 추가하면 실력이 늘어요</span></h2>
+    {% for s in flagged %}
+    <div class="case-card flagged open" id="real-{{ s.id }}">
+
+      <div class="case-header" onclick="toggleCase(this)">
+        <span class="case-company">{{ s.company }}</span>
+        <span class="case-industry">{{ s.scenario.industry }}</span>
+        <span class="badge {% if s.actual_outcome.outcome == 'success' %}badge-green{% else %}badge-red{% endif %}">
+          실제 {{ '성공' if s.actual_outcome.outcome == 'success' else '실패' }}
+        </span>
+        <span class="badge badge-red">판단 불일치</span>
+        <span class="score-inline" style="color:#ff6b6b;">일치율 {{ s.match_score|int }}%</span>
+        <span class="case-date">{{ s.created_at[:10] }}</span>
+        <span class="expand-icon">▼</span>
+      </div>
+
+      <div class="case-body">
+
+        <!-- 시나리오 -->
+        <div class="body-section">
+          <div class="body-section-title blue">시나리오 — 에이전트에게 주어진 상황</div>
+          <div class="scenario-grid">
+            <div class="scenario-field full">
+              <div class="field-label">핵심 과제</div>
+              <div class="field-value">{{ s.scenario.challenge }}</div>
+            </div>
+            <div class="scenario-field full">
+              <div class="field-label">상황</div>
+              <div class="field-value">{{ s.scenario.context }}</div>
+            </div>
+            <div class="scenario-field">
+              <div class="field-label">목표</div>
+              <div class="field-value">{{ s.scenario.goal }}</div>
+            </div>
+            <div class="scenario-field">
+              <div class="field-label">보유 자산</div>
+              <div class="field-value">{{ s.scenario.assets }}</div>
+            </div>
+            <div class="scenario-field full">
+              <div class="field-label">제약 조건</div>
+              <div class="field-value">{{ s.scenario.constraints }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 에이전트 판단 -->
+        <div class="body-section">
+          <div class="body-section-title purple">에이전트 판단</div>
+          <div class="judgment-block">
+            <div class="jb-label">판단 결론</div>
+            <div class="jb-value">{{ s.agent_judgment.judgment }}</div>
+          </div>
+          <div class="judgment-block">
+            <div class="jb-label">지금 당장 할 것</div>
+            <div class="jb-value action">{{ s.agent_judgment.action }}</div>
+          </div>
+          <div class="judgment-block">
+            <div class="jb-label">근거</div>
+            <div class="jb-value reasoning">{{ s.agent_judgment.reasoning }}</div>
+          </div>
+        </div>
+
+        <!-- 실제 결과 -->
+        <div class="body-section">
+          <div class="body-section-title green">실제로 일어난 일</div>
+          <div class="actual-block">
+            <div class="ab-label">실제 결정</div>
+            <div class="ab-value">{{ s.actual_outcome.decision }}</div>
+          </div>
+          <div class="actual-block">
+            <div class="ab-label">실제 결과</div>
+            <div class="ab-value">{{ s.actual_outcome.result }}</div>
+          </div>
+        </div>
+
+        <!-- 대조 분석 -->
+        <div class="body-section">
+          <div class="body-section-title red">대조 분석</div>
+          <div class="compare-grid">
+            <div class="compare-box got">
+              <div class="cb-title">잘 판단한 것</div>
+              <ul>{% for g in s.comparison.what_agent_got_right %}<li>{{ g }}</li>{% endfor %}</ul>
+            </div>
+            <div class="compare-box missed">
+              <div class="cb-title">놓친 것 <span style="color:#666;font-size:9px;font-weight:400;">→ 클릭해서 패턴 추가</span></div>
+              <ul>{% for m in s.comparison.what_agent_missed %}
+              <li>{{ m }} <button class="missed-add-btn" onclick="prefillPattern({{ s.id }}, '{{ m|replace("'", "\\'") }}')">+ 패턴</button></li>
+              {% endfor %}</ul>
+            </div>
+          </div>
+          <div class="insight-box" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+            <div>
+              <strong style="color:#74c0fc; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">핵심 인사이트</strong><br>
+              {{ s.actual_outcome.key_insight }}
+            </div>
+            <button class="add-pattern-btn" onclick="prefillPattern({{ s.id }}, '{{ s.actual_outcome.key_insight|replace("'", "\\'") }}')" style="white-space:nowrap;flex-shrink:0;">패턴으로 추가</button>
+          </div>
+        </div>
+
+        <!-- 인라인 패턴 추가 폼 -->
+        <div class="inline-pattern-form" id="pattern-form-{{ s.id }}">
+          <label>카테고리</label>
+          <select id="cat-{{ s.id }}">
+            <option value="채널 판단">채널 판단</option>
+            <option value="전환 판단">전환 판단</option>
+            <option value="자산 활용">자산 활용</option>
+            <option value="구조/전략 판단">구조/전략 판단</option>
+            <option value="런칭/가격 판단">런칭/가격 판단</option>
+            <option value="파트너십 판단">파트너십 판단</option>
+            <option value="실행/의사결정 메타">실행/의사결정 메타</option>
+            <option value="콘텐츠 기획">콘텐츠 기획</option>
+            <option value="기타">기타</option>
+          </select>
+          <label>패턴 내용 <span style="color:#555;font-weight:400;">(Ctrl+Enter로 저장)</span></label>
+          <textarea id="rule-{{ s.id }}" placeholder="이 케이스에서 배운 판단 원칙을 입력하세요" onkeydown="if(event.ctrlKey&&event.key==='Enter'){event.preventDefault();savePattern({{ s.id }})}"></textarea>
+          <div class="form-btns">
+            <button class="btn-save" onclick="savePattern({{ s.id }})">패턴 저장</button>
+            <button class="btn-cancel" onclick="closeForm({{ s.id }})">취소</button>
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button class="add-pattern-btn" onclick="toggleForm({{ s.id }})">직접 패턴 입력</button>
+          <span id="added-count-{{ s.id }}" style="display:none;font-size:12px;font-weight:700;color:#9c93ff;background:#1a1530;border:1px solid #6c63ff44;border-radius:4px;padding:4px 10px;" data-count="0"></span>
+          <button class="dismiss-btn" onclick="dismissReal({{ s.id }})">리뷰 완료</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 최근 실행 결과 -->
+  <div class="section-card">
+    <h2>최근 실제 사례 시뮬레이션</h2>
+    {% if recent %}
+    {% for s in recent %}
+    <div class="case-card {% if s.aligned %}aligned{% endif %}">
+
+      <div class="case-header" onclick="toggleCase(this)">
+        <span class="case-company">{{ s.company }}</span>
+        <span class="case-industry">{{ s.scenario.industry }}</span>
+        <span class="badge {% if s.actual_outcome.outcome == 'success' %}badge-green{% else %}badge-red{% endif %}">
+          실제 {{ '성공' if s.actual_outcome.outcome == 'success' else '실패' }}
+        </span>
+        <span class="badge {% if s.aligned %}badge-green{% else %}badge-red{% endif %}">
+          {% if s.aligned %}판단 일치{% else %}판단 불일치{% endif %}
+        </span>
+        <span class="score-inline" style="color:{% if s.match_score >= 70 %}#51cf66{% elif s.match_score >= 50 %}#fcc419{% else %}#ff6b6b{% endif %};">
+          일치율 {{ s.match_score|int }}%
+        </span>
+        <span class="case-date">{{ s.created_at[:10] }}</span>
+        <span class="expand-icon">▼</span>
+      </div>
+
+      <div class="case-body">
+
+        <!-- 시나리오 -->
+        <div class="body-section">
+          <div class="body-section-title blue">시나리오 — 에이전트에게 주어진 상황</div>
+          <div class="scenario-grid">
+            <div class="scenario-field full">
+              <div class="field-label">핵심 과제</div>
+              <div class="field-value">{{ s.scenario.challenge }}</div>
+            </div>
+            <div class="scenario-field full">
+              <div class="field-label">상황</div>
+              <div class="field-value">{{ s.scenario.context }}</div>
+            </div>
+            <div class="scenario-field">
+              <div class="field-label">목표</div>
+              <div class="field-value">{{ s.scenario.goal }}</div>
+            </div>
+            <div class="scenario-field">
+              <div class="field-label">보유 자산</div>
+              <div class="field-value">{{ s.scenario.assets }}</div>
+            </div>
+            <div class="scenario-field full">
+              <div class="field-label">제약 조건</div>
+              <div class="field-value">{{ s.scenario.constraints }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 에이전트 판단 -->
+        <div class="body-section">
+          <div class="body-section-title purple">에이전트 판단</div>
+          <div class="judgment-block">
+            <div class="jb-label">판단 결론</div>
+            <div class="jb-value">{{ s.agent_judgment.judgment }}</div>
+          </div>
+          <div class="judgment-block">
+            <div class="jb-label">지금 당장 할 것</div>
+            <div class="jb-value action">{{ s.agent_judgment.action }}</div>
+          </div>
+          <div class="judgment-block">
+            <div class="jb-label">근거</div>
+            <div class="jb-value reasoning">{{ s.agent_judgment.reasoning }}</div>
+          </div>
+        </div>
+
+        <!-- 실제 결과 -->
+        <div class="body-section">
+          <div class="body-section-title green">실제로 일어난 일</div>
+          <div class="actual-block">
+            <div class="ab-label">실제 결정</div>
+            <div class="ab-value">{{ s.actual_outcome.decision }}</div>
+          </div>
+          <div class="actual-block">
+            <div class="ab-label">실제 결과</div>
+            <div class="ab-value">{{ s.actual_outcome.result }}</div>
+          </div>
+        </div>
+
+        <!-- 대조 분석 -->
+        <div class="body-section">
+          <div class="body-section-title yellow">대조 분석</div>
+          <div class="compare-grid">
+            <div class="compare-box got">
+              <div class="cb-title">잘 판단한 것</div>
+              <ul>{% for g in s.comparison.what_agent_got_right %}<li>{{ g }}</li>{% endfor %}</ul>
+            </div>
+            <div class="compare-box missed">
+              <div class="cb-title">놓친 것 <span style="color:#666;font-size:9px;font-weight:400;">→ 클릭해서 패턴 추가</span></div>
+              <ul>{% for m in s.comparison.what_agent_missed %}
+              <li>{{ m }} <button class="missed-add-btn" onclick="prefillPatternR('r{{ s.id }}', '{{ m|replace("'", "\\'") }}')">+ 패턴</button></li>
+              {% endfor %}</ul>
+            </div>
+          </div>
+          <div class="insight-box" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+            <div>
+              <strong style="color:#74c0fc; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">핵심 인사이트</strong><br>
+              {{ s.actual_outcome.key_insight }}
+            </div>
+            <button class="add-pattern-btn" onclick="prefillPatternR('r{{ s.id }}', '{{ s.actual_outcome.key_insight|replace("'", "\\'") }}')" style="white-space:nowrap;flex-shrink:0;">패턴으로 추가</button>
+          </div>
+        </div>
+
+        {% if s.new_patterns_added and s.new_patterns_added|length > 0 %}
+        <div class="body-section">
+          <div class="body-section-title" style="color:#9c93ff; border-color:#6c63ff22;">자동 추가된 패턴</div>
+          <div class="pattern-chips">
+            {% for pid in s.new_patterns_added %}
+            <span class="pattern-chip">패턴 #{{ pid }} 추가됨</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- 인라인 패턴 추가 폼 (최근 사례용) -->
+        <div class="inline-pattern-form" id="pattern-form-r{{ s.id }}">
+          <label>카테고리</label>
+          <select id="cat-r{{ s.id }}">
+            <option value="채널 판단">채널 판단</option>
+            <option value="전환 판단">전환 판단</option>
+            <option value="자산 활용">자산 활용</option>
+            <option value="구조/전략 판단">구조/전략 판단</option>
+            <option value="런칭/가격 판단">런칭/가격 판단</option>
+            <option value="파트너십 판단">파트너십 판단</option>
+            <option value="실행/의사결정 메타">실행/의사결정 메타</option>
+            <option value="콘텐츠 기획">콘텐츠 기획</option>
+            <option value="기타">기타</option>
+          </select>
+          <label>패턴 내용 <span style="color:#555;font-weight:400;">(Ctrl+Enter로 저장)</span></label>
+          <textarea id="rule-r{{ s.id }}" placeholder="이 케이스에서 배운 판단 원칙을 입력하세요" onkeydown="if(event.ctrlKey&&event.key==='Enter'){event.preventDefault();savePatternR('r{{ s.id }}', {{ s.id }})}"></textarea>
+          <div class="form-btns">
+            <button class="btn-save" onclick="savePatternR('r{{ s.id }}', {{ s.id }})">패턴 저장</button>
+            <button class="btn-cancel" onclick="closeForm('r{{ s.id }}')">취소</button>
+          </div>
+        </div>
+        <div class="action-bar" style="margin-top:14px;">
+          <button class="add-pattern-btn" onclick="prefillPatternR('r{{ s.id }}', '{{ s.actual_outcome.key_insight|replace("'", "\\'") }}')">인사이트 → 패턴 추가</button>
+        </div>
+
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty">아직 실행한 사례가 없어요.<br>오른쪽 상단 버튼을 눌러 시작해보세요.</div>
+    {% endif %}
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+function toggleCase(header) {
+  header.parentElement.classList.toggle('open');
+}
+
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg.replace(/\n/g, '<br>');
+  t.style.borderTopColor = color || '#51cf66';
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 4000);
+}
+
+function runRealSim() {
+  const btn = document.getElementById('realBtn');
+  btn.disabled = true;
+  let dots = 0;
+  const ticker = setInterval(() => {
+    dots = (dots + 1) % 4;
+    btn.textContent = '분석 중' + '.'.repeat(dots);
+  }, 600);
+
+  fetch('/api/simulate-real', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: '{}'
+  })
+  .then(r => r.json())
+  .then(data => {
+    clearInterval(ticker);
+    btn.disabled = false;
+    btn.textContent = '실제 사례 10개 실행';
+    if (data.ok) {
+      const s = data.summary;
+      let msg = `${s.total}개 완료 · 일치 ${s.aligned}개 · 평균 ${s.avg_score}%`;
+      if (s.patterns_added > 0) msg += ` · 패턴 ${s.patterns_added}개 추가`;
+      if (s.newly_generated > 0) msg += `\n새 사례 ${s.newly_generated}개 자동 생성됨`;
+      toast(msg, s.aligned >= s.total / 2 ? '#51cf66' : '#fcc419');
+      setTimeout(() => location.reload(), 5000);
+    } else {
+      toast('오류: ' + data.error, '#ff6b6b');
+    }
+  })
+  .catch(() => {
+    clearInterval(ticker);
+    btn.disabled = false;
+    btn.textContent = '실제 사례 10개 실행';
+    toast('네트워크 오류', '#ff6b6b');
+  });
+}
+
+function dismissReal(id) {
+  fetch('/api/dismiss-real/' + id, {method: 'POST'})
+  .then(() => {
+    document.getElementById('real-' + id).style.display = 'none';
+    toast('리뷰 완료');
+  });
+}
+
+// 패턴 폼 열기/닫기
+function toggleForm(id) {
+  const form = document.getElementById('pattern-form-' + id);
+  form.classList.toggle('open');
+}
+function closeForm(id) {
+  document.getElementById('pattern-form-' + id).classList.remove('open');
+}
+
+// 놓친 것 / 인사이트로 폼 미리채우기 (flagged 케이스)
+function prefillPattern(simId, text) {
+  const form = document.getElementById('pattern-form-' + simId);
+  document.getElementById('rule-' + simId).value = text;
+  form.classList.add('open');
+  form.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+// 최근 사례용
+function prefillPatternR(key, text) {
+  const form = document.getElementById('pattern-form-' + key);
+  document.getElementById('rule-' + key).value = text;
+  form.classList.add('open');
+  form.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+// 패턴 저장 (flagged 케이스 — 저장 후 폼만 초기화, 카드 유지)
+function savePattern(simId) {
+  const ruleEl = document.getElementById('rule-' + simId);
+  const rule = ruleEl.value.trim();
+  const category = document.getElementById('cat-' + simId).value;
+  if (!rule) { toast('패턴 내용을 입력하세요', '#ff6b6b'); return; }
+  fetch('/api/add-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rule, category, simulation_id: simId})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'ok') {
+      ruleEl.value = '';
+      ruleEl.focus();
+      const counter = document.getElementById('added-count-' + simId);
+      const cnt = parseInt(counter.dataset.count || '0') + 1;
+      counter.dataset.count = cnt;
+      counter.textContent = '패턴 ' + cnt + '개 추가됨 ✓';
+      counter.style.display = 'inline-block';
+      toast('패턴 추가 완료 (ID: ' + data.new_id + ')', '#9c93ff');
+    } else {
+      toast('오류: ' + data.message, '#ff6b6b');
+    }
+  });
+}
+
+// 패턴 저장 (최근 사례 — dismiss 없이)
+function savePatternR(key, simId) {
+  const rule = document.getElementById('rule-' + key).value.trim();
+  const category = document.getElementById('cat-' + key).value;
+  if (!rule) { toast('패턴 내용을 입력하세요', '#ff6b6b'); return; }
+  fetch('/api/add-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rule, category})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'ok') {
+      closeForm(key);
+      document.getElementById('rule-' + key).value = '';
+      toast('패턴 추가 완료', '#9c93ff');
+    } else {
+      toast('오류: ' + data.message, '#ff6b6b');
+    }
+  });
+}
+
+function reprocessAll() {
+  const btn = document.getElementById('reprocessBtn');
+  btn.disabled = true;
+  let dots = 0;
+  const ticker = setInterval(() => {
+    dots = (dots + 1) % 4;
+    btn.textContent = '재분석 중' + '.'.repeat(dots);
+  }, 600);
+
+  fetch('/api/reprocess-real', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: '{}'
+  })
+  .then(r => r.json())
+  .then(data => {
+    clearInterval(ticker);
+    btn.disabled = false;
+    btn.textContent = '기존 사례 재분석';
+    if (data.ok) {
+      const r = data.result;
+      toast(`재분석 완료 · ${r.updated}개 업데이트 · 새 패턴 ${r.new_patterns}개 추가`, '#9c93ff');
+      setTimeout(() => location.reload(), 4000);
+    } else {
+      toast('오류: ' + data.error, '#ff6b6b');
+    }
+  })
+  .catch(() => {
+    clearInterval(ticker);
+    btn.disabled = false;
+    btn.textContent = '기존 사례 재분석';
+    toast('네트워크 오류', '#ff6b6b');
+  });
+}
+
+// 처음 로드 시 첫 번째 카드 자동 펼치기
+window.addEventListener('DOMContentLoaded', () => {
+  const first = document.querySelector('.case-card');
+  if (first) first.classList.add('open');
+});
+</script>
+
+</body>
+</html>

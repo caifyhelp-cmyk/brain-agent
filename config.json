@@ -1,0 +1,6 @@
+{
+  "openai_api_key": "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",
+  "simulations_per_day": 10,
+  "simulation_hour": 10,
+  "owner_pin": "1234"
+}

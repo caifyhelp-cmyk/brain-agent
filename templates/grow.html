@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 뇌 성장</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* NAV */
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 28px; display: flex; align-items: center; gap: 28px; height: 52px; flex-shrink: 0; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; margin-right: 8px; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav .badge { background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 10px; margin-left: 4px; vertical-align: middle; }
+
+  /* LAYOUT */
+  .body-wrap { display: flex; flex: 1; overflow: hidden; }
+
+  /* SIDEBAR */
+  .sidebar { width: 220px; background: #13131a; border-right: 1px solid #2a2a3a; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-section { padding: 16px 14px 8px; }
+  .sidebar-label { font-size: 10px; color: #444; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; padding-left: 8px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: #888; transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; }
+  .sidebar-item:hover { background: #1a1a24; color: #ddd; }
+  .sidebar-item.active { background: #6c63ff22; color: #9c93ff; }
+  .sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .content-subtabs { padding: 4px 14px 8px; }
+  .subtab { display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 32px; border-radius: 6px; cursor: pointer; font-size: 12px; color: #666; transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; }
+  .subtab:hover { color: #aaa; }
+  .subtab.active { color: #9c93ff; background: #6c63ff15; }
+
+  .sidebar-divider { border: none; border-top: 1px solid #2a2a3a; margin: 8px 14px; }
+
+  /* MAIN AREA */
+  .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* 입장 화면 */
+  .entry-screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; }
+  .entry-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; padding: 36px; width: 100%; max-width: 400px; }
+  .entry-card h2 { font-size: 18px; color: #fff; margin-bottom: 6px; }
+  .entry-card .desc { font-size: 13px; color: #666; margin-bottom: 24px; line-height: 1.6; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; color: #888; font-weight: 600; margin-bottom: 5px; letter-spacing: 0.5px; }
+  .field input { width: 100%; background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 8px; padding: 9px 12px; color: #fff; font-size: 13px; outline: none; transition: border 0.15s; }
+  .field input:focus { border-color: #6c63ff; }
+  .field input::placeholder { color: #444; }
+  .owner-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .owner-row label { font-size: 13px; color: #888; cursor: pointer; }
+  .owner-row input[type=checkbox] { accent-color: #6c63ff; width: 14px; height: 14px; cursor: pointer; }
+  .pin-wrap { display: none; }
+  .pin-wrap.show { display: block; }
+  .btn-enter { width: 100%; background: #6c63ff; color: #fff; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+  .btn-enter:hover { background: #7c73ff; }
+  .btn-enter:disabled { background: #333; cursor: not-allowed; }
+  .err { color: #ff6b6b; font-size: 12px; margin-top: 8px; display: none; }
+
+  /* 콘텐츠 탭 케이스 영역 */
+  .case-bar { background: #13131a; border-bottom: 1px solid #2a2a3a; padding: 12px 20px; display: flex; align-items: flex-start; gap: 16px; flex-shrink: 0; }
+  .case-bar.hidden { display: none; }
+  .case-content { flex: 1; }
+  .case-label { font-size: 10px; color: #555; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .case-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .case-field { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 8px; padding: 10px 12px; }
+  .case-field-label { font-size: 10px; color: #555; margin-bottom: 4px; font-weight: 600; }
+  .case-field-value { font-size: 12px; color: #ccc; line-height: 1.5; }
+  .btn-new-case { background: #1a1a24; border: 1px solid #2a2a3a; color: #888; border-radius: 8px; padding: 8px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; }
+  .btn-new-case:hover { border-color: #6c63ff55; color: #9c93ff; }
+  .case-empty { color: #444; font-size: 13px; }
+
+  /* CHAT */
+  .chat-wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .messages::-webkit-scrollbar { width: 3px; }
+  .messages::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 4px; }
+
+  .msg { display: flex; flex-direction: column; max-width: 78%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .msg-label { font-size: 11px; color: #555; margin-bottom: 3px; }
+  .bubble { padding: 11px 15px; border-radius: 13px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+  .msg.user .bubble { background: #6c63ff; color: #fff; border-bottom-right-radius: 3px; }
+  .msg.assistant .bubble { background: #1a1a24; border: 1px solid #2a2a3a; color: #e0e0e0; border-bottom-left-radius: 3px; }
+  .msg-actions { margin-top: 5px; display: flex; gap: 5px; }
+  .action-btn { border: 1px solid #2a2a3a; background: transparent; color: #666; font-size: 11px; padding: 3px 9px; border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+  .action-btn:hover { border-color: #6c63ff55; color: #9c93ff; }
+
+  .typing { align-self: flex-start; display: flex; align-items: center; gap: 4px; padding: 11px 15px; background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 13px; border-bottom-left-radius: 3px; }
+  .dot { width: 5px; height: 5px; background: #555; border-radius: 50%; animation: bounce 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+  .input-area { padding: 12px 20px 16px; flex-shrink: 0; border-top: 1px solid #2a2a3a; }
+  .input-row { display: flex; gap: 8px; align-items: flex-end; }
+  textarea { flex: 1; background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 13px; font-family: inherit; line-height: 1.5; resize: none; outline: none; max-height: 140px; min-height: 42px; transition: border 0.15s; }
+  textarea:focus { border-color: #6c63ff; }
+  textarea::placeholder { color: #444; }
+  .send-btn { background: #6c63ff; border: none; border-radius: 9px; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; flex-shrink: 0; }
+  .send-btn:hover { background: #7c73ff; }
+  .send-btn:disabled { background: #2a2a3a; cursor: not-allowed; }
+  .send-btn svg { width: 16px; height: 16px; fill: #fff; }
+
+  /* 패턴 요청 모달 */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-bg.show { display: flex; }
+  .modal { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; padding: 26px; width: 100%; max-width: 460px; }
+  .modal h3 { font-size: 15px; color: #fff; margin-bottom: 16px; }
+  .modal label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; font-weight: 600; }
+  .modal input, .modal textarea { width: 100%; background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 7px; padding: 8px 11px; color: #fff; font-size: 13px; font-family: inherit; outline: none; margin-bottom: 11px; }
+  .modal textarea { min-height: 70px; resize: vertical; }
+  .modal input:focus, .modal textarea:focus { border-color: #6c63ff; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-btns button { padding: 7px 15px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-cancel { background: #2a2a3a; color: #aaa; }
+  .btn-submit { background: #6c63ff; color: #fff; }
+  .btn-submit:hover { background: #7c73ff; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/grow" class="active">뇌 성장</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/logs" id="nav_logs" class="hidden">로그</a>
+  <a href="/review" id="nav_review" class="hidden">패턴 검토{% if pending > 0 %}<span class="badge">{{ pending }}</span>{% endif %}</a>
+</nav>
+
+<div class="body-wrap">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">섹션</div>
+      <button class="sidebar-item" id="tab_marketing" onclick="setSection('marketing')">
+        <span class="icon">📊</span> 마케팅
+      </button>
+      <button class="sidebar-item" id="tab_planning" onclick="setSection('planning')">
+        <span class="icon">🗂</span> 기획
+      </button>
+      <button class="sidebar-item" id="tab_content" onclick="setSection('content')">
+        <span class="icon">🎬</span> 콘텐츠
+      </button>
+    </div>
+
+    <div class="content-subtabs hidden" id="content_subtabs">
+      <button class="subtab" id="sub_youtube" onclick="setContentType('youtube')">▷ 유튜브 숏폼</button>
+      <button class="subtab" id="sub_blog" onclick="setContentType('blog')">▷ 네이버 블로그</button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">접속 정보</div>
+      <div style="padding: 8px 10px;">
+        <div id="info_name" style="font-size:13px; color:#888;">-</div>
+        <div id="info_role" style="font-size:11px; color:#555; margin-top:2px;">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-area">
+
+    <!-- 입장 전 -->
+    <div class="entry-screen" id="entry_screen">
+      <div class="entry-card">
+        <h2 id="entry_title">마케팅</h2>
+        <p class="desc" id="entry_desc">마케팅 전략과 채널에 대해 뇌와 대화하세요.</p>
+
+        <div class="field">
+          <label>이름</label>
+          <input type="text" id="input_name" placeholder="홍길동" />
+        </div>
+
+        <div class="owner-row">
+          <input type="checkbox" id="is_owner_check" onchange="togglePin()" />
+          <label for="is_owner_check">오너로 입장</label>
+        </div>
+        <div class="pin-wrap" id="pin_wrap">
+          <div class="field">
+            <label>PIN</label>
+            <input type="password" id="input_pin" placeholder="••••" />
+          </div>
+        </div>
+
+        <button class="btn-enter" onclick="enterSession()">시작</button>
+        <div class="err" id="entry_err"></div>
+      </div>
+    </div>
+
+    <!-- 채팅 영역 -->
+    <div class="chat-wrap hidden" id="chat_area">
+
+      <!-- 콘텐츠 탭 케이스 바 -->
+      <div class="case-bar hidden" id="case_bar">
+        <div class="case-content">
+          <div class="case-label">클라이언트 케이스</div>
+          <div id="case_display" class="case-empty">케이스를 생성하세요</div>
+        </div>
+        <button class="btn-new-case" onclick="loadNewCase()">새 케이스 생성</button>
+      </div>
+
+      <div class="messages" id="messages">
+        <div id="empty_msg" style="text-align:center; color:#333; font-size:13px; padding:60px 20px;">
+          뭐든 꺼내세요.
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-row">
+          <textarea id="msg_input" placeholder="메시지를 입력하세요..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="send_btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 패턴 요청 모달 -->
+<div class="modal-bg" id="req_modal">
+  <div class="modal">
+    <h3>패턴 추가 요청</h3>
+    <label>카테고리</label>
+    <input type="text" id="req_category" placeholder="예: 숏폼_흥미패턴, 블로그_각도" />
+    <label>패턴 내용</label>
+    <textarea id="req_rule" placeholder="이런 상황에서는 이렇게 한다..."></textarea>
+    <label>요청 이유 (선택)</label>
+    <textarea id="req_context" placeholder="왜 이게 패턴이 되어야 한다고 생각했나요?" style="min-height:55px;"></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-submit" onclick="submitRequest()">요청</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 상태
+let currentSection = '{{ section }}';
+let currentContentType = '{{ content_type }}';
+let convId = null;
+let userName = '';
+let isOwner = false;
+let currentCase = null;
+
+const SECTION_META = {
+  marketing:       { title: '마케팅',       desc: '마케팅 전략, 채널, 타겟에 대해 뇌와 대화하세요.' },
+  planning:        { title: '기획',         desc: '사업 기획, 캠페인, 신규 서비스에 대해 논의하세요.' },
+  content_youtube: { title: '콘텐츠 — 유튜브', desc: '뇌가 클라이언트 케이스를 제시합니다. 숏폼 영상을 기획해 보세요.' },
+  content_blog:    { title: '콘텐츠 — 블로그', desc: '뇌가 클라이언트 케이스를 제시합니다. 블로그 기획안을 작성해 보세요.' },
+};
+
+function fullSection() {
+  if (currentSection === 'content') return `content_${currentContentType}`;
+  return currentSection;
+}
+
+function init() {
+  setSection(currentSection, false);
+  if (currentSection === 'content') setContentType(currentContentType, false);
+  updateEntryUI();
+}
+
+function setSection(sec, reset = true) {
+  currentSection = sec;
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab_${sec}`).classList.add('active');
+
+  const subtabs = document.getElementById('content_subtabs');
+  subtabs.classList.toggle('hidden', sec !== 'content');
+
+  if (reset) resetSession();
+  updateEntryUI();
+}
+
+function setContentType(type, reset = true) {
+  currentContentType = type;
+  document.querySelectorAll('.subtab').forEach(el => el.classList.remove('active'));
+  document.getElementById(`sub_${type}`).classList.add('active');
+  if (reset) resetSession();
+  updateEntryUI();
+}
+
+function updateEntryUI() {
+  const meta = SECTION_META[fullSection()] || SECTION_META.marketing;
+  document.getElementById('entry_title').textContent = meta.title;
+  document.getElementById('entry_desc').textContent = meta.desc;
+}
+
+function resetSession() {
+  convId = null;
+  currentCase = null;
+  document.getElementById('entry_screen').classList.remove('hidden');
+  document.getElementById('chat_area').classList.add('hidden');
+  document.getElementById('messages').innerHTML = `<div id="empty_msg" style="text-align:center;color:#333;font-size:13px;padding:60px 20px;">뭐든 꺼내세요.</div>`;
+}
+
+function togglePin() {
+  document.getElementById('pin_wrap').classList.toggle('show', document.getElementById('is_owner_check').checked);
+}
+
+async function enterSession() {
+  const name = document.getElementById('input_name').value.trim();
+  const pin = document.getElementById('input_pin').value.trim();
+  const errEl = document.getElementById('entry_err');
+  errEl.style.display = 'none';
+
+  if (!name) { showEntryErr('이름을 입력하세요'); return; }
+
+  const btn = document.querySelector('.btn-enter');
+  btn.disabled = true; btn.textContent = '입장 중...';
+
+  const res = await fetch('/api/grow/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      user_name: name,
+      section: currentSection,
+      content_type: currentContentType,
+      pin
+    })
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = '시작';
+
+  if (!data.ok) { showEntryErr(data.error); return; }
+
+  convId = data.conversation_id;
+  userName = name;
+  isOwner = document.getElementById('is_owner_check').checked && pin.length > 0 && data.ok;
+
+  document.getElementById('info_name').textContent = name;
+  document.getElementById('info_role').textContent = isOwner ? '오너' : '직원';
+
+  if (isOwner) {
+    document.getElementById('nav_logs').classList.remove('hidden');
+    document.getElementById('nav_review').classList.remove('hidden');
+  }
+
+  document.getElementById('entry_screen').classList.add('hidden');
+  document.getElementById('chat_area').classList.remove('hidden');
+
+  // 콘텐츠 탭: 케이스 바 표시
+  const isContent = fullSection().startsWith('content');
+  document.getElementById('case_bar').classList.toggle('hidden', !isContent);
+
+  document.getElementById('msg_input').focus();
+}
+
+function showEntryErr(msg) {
+  const el = document.getElementById('entry_err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// 케이스 생성 (콘텐츠 탭)
+async function loadNewCase() {
+  const btn = document.querySelector('.btn-new-case');
+  btn.textContent = '생성 중...'; btn.disabled = true;
+
+  const res = await fetch('/api/grow/new-case', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content_type: currentContentType})
+  });
+  const data = await res.json();
+  btn.textContent = '새 케이스 생성'; btn.disabled = false;
+
+  if (!data.ok) { alert(data.error); return; }
+  currentCase = data.case;
+
+  const fields = [
+    {label: '업종', key: 'industry'},
+    {label: '상황', key: 'situation'},
+    {label: '목표', key: 'goal'},
+    {label: '보유 자산', key: 'assets'},
+    {label: '제약', key: 'constraint'},
+  ];
+
+  document.getElementById('case_display').innerHTML = `
+    <div class="case-grid">
+      ${fields.map(f => `
+        <div class="case-field">
+          <div class="case-field-label">${f.label}</div>
+          <div class="case-field-value">${esc(data.case[f.key] || '-')}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // 케이스 정보를 채팅에 붙임 (뇌가 맥락 알도록)
+  const caseText = `[새 케이스]\n업종: ${data.case.industry}\n상황: ${data.case.situation}\n목표: ${data.case.goal}\n보유 자산: ${data.case.assets}\n제약: ${data.case.constraint}`;
+  await sendSystemMessage(caseText);
+}
+
+async function sendSystemMessage(text) {
+  // 케이스 정보를 뇌에게 전달 (사용자 이름은 시스템으로)
+  await fetch('/api/grow/message', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({conversation_id: convId, message: text, user_name: '[케이스]', section: fullSection()})
+  });
+  // 뇌 응답은 UI에 표시하지 않음 — 직원이 기획 올리면 그때 피드백
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+function scrollBottom() {
+  const m = document.getElementById('messages');
+  m.scrollTop = m.scrollHeight;
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msg_input');
+  const text = input.value.trim();
+  if (!text || !convId) return;
+
+  document.getElementById('send_btn').disabled = true;
+  appendMsg('user', text, userName);
+  input.value = ''; input.style.height = 'auto';
+
+  const typingEl = addTyping();
+
+  const res = await fetch('/api/grow/message', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({conversation_id: convId, message: text, user_name: userName, section: fullSection()})
+  });
+  const data = await res.json();
+
+  typingEl.remove();
+  document.getElementById('send_btn').disabled = false;
+
+  if (data.ok) appendMsg('assistant', data.reply, '뇌', data.message_id);
+  else appendMsg('assistant', '오류: ' + (data.error || '-'), '뇌');
+  scrollBottom();
+}
+
+function appendMsg(role, content, name, msgId) {
+  const msgs = document.getElementById('messages');
+  const empty = document.getElementById('empty_msg');
+  if (empty) empty.remove();
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  let actions = '';
+  if (role === 'assistant') {
+    actions = `<div class="msg-actions"><button class="action-btn" onclick="openReqModal(this)">패턴 요청</button></div>`;
+  }
+
+  div.innerHTML = `
+    <div class="msg-label">${role === 'assistant' ? '🧠 뇌' : esc(name)}</div>
+    <div class="bubble" data-raw="${esc(content)}">${esc(content).replace(/\n/g,'<br>')}</div>
+    ${actions}
+  `;
+  msgs.appendChild(div);
+  scrollBottom();
+}
+
+function addTyping() {
+  const msgs = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'typing';
+  el.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+  msgs.appendChild(el);
+  scrollBottom();
+  return el;
+}
+
+// 패턴 요청 모달
+let reqBubbleContent = '';
+function openReqModal(btn) {
+  reqBubbleContent = btn.closest('.msg').querySelector('.bubble').dataset.raw || '';
+  document.getElementById('req_category').value = '';
+  document.getElementById('req_rule').value = '';
+  document.getElementById('req_context').value = '';
+  document.getElementById('req_modal').classList.add('show');
+}
+
+async function submitRequest() {
+  const category = document.getElementById('req_category').value.trim() || '기타';
+  const rule = document.getElementById('req_rule').value.trim();
+  const context = document.getElementById('req_context').value.trim();
+  if (!rule) { alert('패턴 내용을 입력하세요'); return; }
+
+  const res = await fetch('/api/grow/request-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({conversation_id: convId, category, rule, requested_by: userName, context})
+  });
+  const data = await res.json();
+  if (data.ok) { closeModal(); alert('오너에게 검토 요청을 보냈습니다.'); }
+  else alert(data.error);
+}
+
+function closeModal() { document.getElementById('req_modal').classList.remove('show'); }
+
+document.getElementById('req_modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('req_modal')) closeModal();
+});
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+init();
+</script>
+</body>
+</html>

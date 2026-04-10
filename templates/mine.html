@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 데이터 마이닝</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.3px; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #fcc419; }
+  nav .spacer { flex: 1; }
+
+  main { padding: 32px; max-width: 1200px; margin: 0 auto; }
+
+  .page-header { margin-bottom: 32px; }
+  .page-header h1 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  .page-header p { font-size: 14px; color: #666; line-height: 1.6; }
+
+  /* 상단 지표 */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+  .kpi { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 20px; }
+  .kpi .label { font-size: 12px; color: #666; margin-bottom: 6px; }
+  .kpi .val { font-size: 30px; font-weight: 800; color: #fff; }
+  .kpi .sub { font-size: 12px; color: #555; margin-top: 4px; }
+  .kpi.highlight { border-color: #fcc41944; }
+  .kpi.highlight .val { color: #fcc419; }
+  .kpi.ok .val { color: #51cf66; }
+  .kpi.warn .val { color: #ff6b6b; }
+
+  /* 성장 추이 차트 */
+  .section { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 24px; margin-bottom: 28px; }
+  .section-title { font-size: 13px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 20px; }
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-wrap svg { width: 100%; display: block; }
+  .chart-label { font-size: 11px; color: #555; margin-top: 8px; text-align: right; }
+
+  /* 2열 레이아웃 */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+
+  /* 약점 빈도 */
+  .missed-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1f1f2e; }
+  .missed-item:last-child { border-bottom: none; }
+  .missed-cnt { font-size: 18px; font-weight: 800; color: #ff6b6b; min-width: 28px; }
+  .missed-text { font-size: 13px; color: #ccc; flex: 1; line-height: 1.5; }
+  .missed-add { background: transparent; border: 1px solid #6c63ff44; color: #9c93ff; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+  .missed-add:hover { background: #1a1530; }
+  .missed-add.done { border-color: #51cf6644; color: #51cf66; cursor: default; }
+
+  /* 패턴 후보 */
+  .cat-section { margin-bottom: 28px; }
+  .cat-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .cat-name { font-size: 12px; font-weight: 700; color: #9c93ff; text-transform: uppercase; letter-spacing: 0.5px; }
+  .cat-cnt { font-size: 11px; color: #555; }
+  .cat-add-all { background: #6c63ff22; border: 1px solid #6c63ff44; color: #9c93ff; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; margin-left: auto; }
+  .cat-add-all:hover { background: #6c63ff44; }
+
+  .suggestion-card { background: #13131f; border: 1px solid #2a2a3a; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: flex; gap: 14px; align-items: flex-start; transition: border-color 0.15s; }
+  .suggestion-card:hover { border-color: #3a3a4a; }
+  .suggestion-card.added { border-color: #51cf6633; background: #0f1a0f; opacity: 0.7; }
+  .suggestion-card .rule { font-size: 13px; color: #ddd; flex: 1; line-height: 1.6; }
+  .suggestion-card .meta { font-size: 11px; color: #555; margin-top: 4px; }
+  .suggestion-card .meta .score { color: #6c63ff; }
+  .btn-add { background: #6c63ff22; border: 1px solid #6c63ff44; color: #9c93ff; border-radius: 5px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; }
+  .btn-add:hover { background: #6c63ff44; }
+  .btn-add.added { background: #51cf6622; border-color: #51cf6644; color: #51cf66; cursor: default; }
+
+  /* 필터 탭 */
+  .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .filter-tab { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 6px; color: #888; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .filter-tab:hover { color: #fff; }
+  .filter-tab.active { background: #fcc41922; border-color: #fcc41966; color: #fcc419; }
+
+  #toast { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); background: #1e1e2e; color: #fff; padding: 14px 24px; border-radius: 10px; font-size: 14px; display: none; z-index: 999; border: 1px solid #3a3a5a; border-top: 3px solid #fcc419; box-shadow: 0 8px 32px #00000066; }
+  .empty { color: #555; font-size: 14px; text-align: center; padding: 32px; }
+
+  .bulk-bar { background: #1a1a24; border: 1px solid #fcc41933; border-radius: 8px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .bulk-bar .info { font-size: 13px; color: #ccc; flex: 1; }
+  .bulk-bar .info strong { color: #fcc419; }
+  .btn-bulk { background: #fcc41922; border: 1px solid #fcc41944; color: #fcc419; border-radius: 6px; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .btn-bulk:hover { background: #fcc41944; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/mine" class="active">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/setup">설정</a>
+  <span class="spacer"></span>
+</nav>
+
+<main>
+
+  <div class="page-header">
+    <h1>데이터 마이닝</h1>
+    <p>{{ real_cases_count if real_cases_count else '227' }}개 케이스 분석 결과에서 아직 패턴으로 추가되지 않은 인사이트 <strong style="color:#fcc419;">{{ total_suggestions }}개</strong>를 발굴했습니다.</p>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi highlight">
+      <div class="label">발굴된 패턴 후보</div>
+      <div class="val">{{ total_suggestions }}</div>
+      <div class="sub">케이스 비교 분석에서 추출</div>
+    </div>
+    <div class="kpi ok">
+      <div class="label">현재 등록 패턴</div>
+      <div class="val">{{ existing_count }}</div>
+      <div class="sub">patterns.json 기준</div>
+    </div>
+    <div class="kpi">
+      <div class="label">추가 시 총 패턴</div>
+      <div class="val" style="color:#c0b8ff;">{{ existing_count + total_suggestions }}</div>
+      <div class="sub">전부 추가할 경우</div>
+    </div>
+    <div class="kpi {% if trend_avg < 70 %}warn{% else %}ok{% endif %}">
+      <div class="label">최근 20개 평균 일치율</div>
+      <div class="val">{{ trend_avg }}%</div>
+      <div class="sub">전체 평균 {{ all_avg }}%</div>
+    </div>
+  </div>
+
+  <!-- 성장 추이 차트 -->
+  <div class="section">
+    <div class="section-title">일치율 추이 ({{ trend|length }}개 케이스)</div>
+    <div class="chart-wrap">
+      {% if trend %}
+      {% set scores = trend | map(attribute='match_score') | list %}
+      {% set max_s = scores | max %}
+      {% set min_s = scores | min %}
+      {% set n = scores | length %}
+      {% set w = 1100 %}
+      {% set h = 140 %}
+      <svg viewBox="0 0 {{ w }} {{ h + 20 }}" xmlns="http://www.w3.org/2000/svg">
+        <!-- 그리드 라인 -->
+        {% for v in [50, 70, 90] %}
+        {% set y = h - ((v - 30) / 70 * h) %}
+        <line x1="0" y1="{{ y }}" x2="{{ w }}" y2="{{ y }}" stroke="#2a2a3a" stroke-width="1"/>
+        <text x="4" y="{{ y - 3 }}" fill="#555" font-size="10">{{ v }}%</text>
+        {% endfor %}
+        <!-- 70% 목표선 -->
+        {% set target_y = h - ((70 - 30) / 70 * h) %}
+        <line x1="0" y1="{{ target_y }}" x2="{{ w }}" y2="{{ target_y }}" stroke="#6c63ff" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+        <!-- 꺾은선 -->
+        <polyline
+          points="{% for i in range(n) %}{% set x = (i / (n-1) * w) if n > 1 else w/2 %}{% set y = h - ((scores[i] - 30) / 70 * h) %}{{ x }},{{ y }} {% endfor %}"
+          fill="none" stroke="#fcc419" stroke-width="2" opacity="0.9"/>
+        <!-- 점 -->
+        {% for i in range(n) %}
+        {% set x = (i / (n-1) * w) if n > 1 else w/2 %}
+        {% set y = h - ((scores[i] - 30) / 70 * h) %}
+        {% set aligned = trend[i].aligned %}
+        <circle cx="{{ x }}" cy="{{ y }}" r="3.5"
+          fill="{% if aligned %}#51cf66{% else %}#ff6b6b{% endif %}"
+          opacity="0.85"/>
+        {% endfor %}
+      </svg>
+      {% endif %}
+    </div>
+    <div class="chart-label">● 일치 &nbsp; ● 불일치 &nbsp; — — 70% 목표</div>
+  </div>
+
+  <!-- 약점 분석 + 빠른 추가 -->
+  <div class="two-col">
+    <div class="section" style="margin-bottom:0;">
+      <div class="section-title">반복 약점 TOP {{ missed|length }} — 이걸 패턴으로 만들면 일치율이 올라가요</div>
+      {% for text, cnt in missed %}
+      <div class="missed-item">
+        <span class="missed-cnt">{{ cnt }}x</span>
+        <span class="missed-text">{{ text }}</span>
+        <button class="missed-add" onclick="addMissed(this, '{{ text | replace("'", "\\'") }}')" title="패턴으로 추가">+ 추가</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="section" style="margin-bottom:0;">
+      <div class="section-title">카테고리별 후보 분포</div>
+      {% for cat, items in by_cat.items() %}
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1f1f2e;">
+        <div style="font-size:13px;color:#ccc;flex:1;">{{ cat }}</div>
+        <div style="font-size:12px;color:#9c93ff;font-weight:700;min-width:32px;text-align:right;">{{ items|length }}개</div>
+        <div style="width:120px;height:5px;background:#2a2a3a;border-radius:3px;">
+          <div style="width:{{ [items|length * 100 // (by_cat.values()|map('length')|max), 100]|min }}%;height:100%;background:#6c63ff;border-radius:3px;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 패턴 기여도 분석 -->
+  <div class="section" style="margin-bottom:28px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+      <div class="section-title" style="margin-bottom:0;">패턴 기여도 분석 — 전체 일치율 기준: {{ overall_rate }}%</div>
+      <button onclick="exportPrompt()" style="margin-left:auto;background:#fcc41922;border:1px solid #fcc41944;color:#fcc419;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;" title="현재 패턴 전체를 n8n용 프롬프트로 내보내기">n8n 프롬프트 내보내기</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#51cf66;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">효과 높은 패턴 TOP 15</div>
+        {% for p in top_patterns %}
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #1f1f2e;">
+          <span style="font-size:11px;color:#555;min-width:24px;padding-top:2px;">#{{ p.id }}</span>
+          <span style="font-size:12px;color:#ccc;flex:1;line-height:1.5;">{{ p.rule[:60] }}{% if p.rule|length > 60 %}…{% endif %}</span>
+          <span style="font-size:11px;font-weight:700;color:{% if p.lift > 0 %}#51cf66{% else %}#888{% endif %};white-space:nowrap;">{{ p.rate }}% ({{ '+' if p.lift > 0 else '' }}{{ p.lift }}p)</span>
+          <span style="font-size:11px;color:#555;white-space:nowrap;">{{ p.fired }}회</span>
+        </div>
+        {% else %}
+        <div style="color:#555;font-size:13px;padding:16px 0;">데이터 없음</div>
+        {% endfor %}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#ff6b6b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">효과 낮은 패턴 — 재검토 필요</div>
+        {% for p in dead_patterns %}
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #1f1f2e;">
+          <span style="font-size:11px;color:#555;min-width:24px;padding-top:2px;">#{{ p.id }}</span>
+          <span style="font-size:12px;color:#888;flex:1;line-height:1.5;">{{ p.rule[:60] }}{% if p.rule|length > 60 %}…{% endif %}</span>
+          <span style="font-size:11px;font-weight:700;color:#ff6b6b;white-space:nowrap;">{{ p.rate }}% ({{ p.lift }}p)</span>
+          <span style="font-size:11px;color:#555;white-space:nowrap;">{{ p.fired }}회</span>
+        </div>
+        {% else %}
+        <div style="color:#555;font-size:13px;padding:16px 0;">데이터 없음</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- n8n 프롬프트 모달 -->
+  <div id="prompt-modal" style="display:none;position:fixed;inset:0;background:#00000099;z-index:300;overflow-y:auto;padding:40px 20px;">
+    <div style="max-width:800px;margin:0 auto;background:#1a1a24;border:1px solid #2a2a3a;border-radius:12px;padding:32px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div>
+          <div style="font-size:18px;font-weight:800;color:#fff;">n8n 프롬프트 자동 생성</div>
+          <div style="font-size:12px;color:#666;margin-top:4px;">현재 패턴 <span id="prompt-count" style="color:#fcc419;"></span>개 기준으로 생성됨</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="copyPrompt()" style="background:#fcc41922;border:1px solid #fcc41944;color:#fcc419;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">복사</button>
+          <button onclick="document.getElementById('prompt-modal').style.display='none'" style="background:none;border:none;color:#666;font-size:22px;cursor:pointer;">×</button>
+        </div>
+      </div>
+      <textarea id="prompt-text" style="width:100%;min-height:500px;background:#0f0f13;border:1px solid #2a2a3a;border-radius:8px;color:#ccc;padding:16px;font-size:12px;font-family:monospace;line-height:1.7;resize:vertical;" readonly></textarea>
+    </div>
+  </div>
+
+  <!-- 패턴 후보 목록 -->
+  <div style="margin-top:28px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+      <h2 style="font-size:13px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.8px;">패턴 후보 {{ total_suggestions }}개</h2>
+      <div class="bulk-bar" style="margin-bottom:0;flex:1;">
+        <span class="info">케이스 분석 AI가 추천한 패턴들. <strong>일치율이 낮은 케이스</strong>부터 정렬됨 — 추가 효과가 큰 것들이 위에.</span>
+        <button class="btn-bulk" onclick="addAllVisible()">보이는 것 전체 추가</button>
+      </div>
+    </div>
+
+    <div class="filter-tabs" id="filter-tabs">
+      <button class="filter-tab active" onclick="filterSuggestions('', this)">전체 {{ total_suggestions }}개</button>
+      {% for cat, items in by_cat.items() %}
+      <button class="filter-tab" onclick="filterSuggestions('{{ cat }}', this)">{{ cat }} {{ items|length }}</button>
+      {% endfor %}
+    </div>
+
+    <div id="suggestions-list">
+      {% for cat, items in by_cat.items() %}
+      <div class="cat-section" data-cat="{{ cat }}">
+        <div class="cat-header">
+          <span class="cat-name">{{ cat }}</span>
+          <span class="cat-cnt">{{ items|length }}개</span>
+          <button class="cat-add-all" onclick="addCategory('{{ cat }}')">카테고리 전체 추가</button>
+        </div>
+        {% for s in items %}
+        <div class="suggestion-card" id="sug-{{ loop.index0 }}-{{ cat|replace(' ','_')|replace('/','_') }}" data-cat="{{ cat }}" data-rule="{{ s.rule }}" data-category="{{ s.category }}">
+          <div style="flex:1;">
+            <div class="rule">{{ s.rule }}</div>
+            <div class="meta">
+              {{ s.from_company }} · <span class="score">일치율 {{ s.case_score|int }}%</span>
+            </div>
+          </div>
+          <button class="btn-add" onclick="addSuggestion(this, '{{ s.rule | replace("'", "\\'") | replace('"', '&quot;') }}', '{{ s.category }}')">+ 패턴 추가</button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+let addedCount = 0;
+
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderTopColor = color || '#fcc419';
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 3000);
+}
+
+function doAdd(rule, category, onSuccess) {
+  return fetch('/api/add-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rule, category})
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') { addedCount++; if (onSuccess) onSuccess(d.new_id); }
+    return d;
+  });
+}
+
+function addSuggestion(btn, rule, category) {
+  if (btn.classList.contains('added')) return;
+  doAdd(rule, category, (id) => {
+    btn.textContent = '추가됨 ✓';
+    btn.classList.add('added');
+    btn.parentElement.classList.add('added');
+    toast('패턴 추가 완료 (ID: ' + id + ')');
+  });
+}
+
+function addMissed(btn, text) {
+  if (btn.classList.contains('done')) return;
+  doAdd(text, '기타', (id) => {
+    btn.textContent = '추가됨 ✓';
+    btn.classList.add('done');
+    toast('패턴 추가 완료 (ID: ' + id + ')');
+  });
+}
+
+function addCategory(cat) {
+  const cards = document.querySelectorAll(`.suggestion-card[data-cat="${cat}"]`);
+  let pending = [];
+  cards.forEach(card => {
+    const btn = card.querySelector('.btn-add');
+    if (!btn.classList.contains('added')) {
+      pending.push({rule: card.dataset.rule, category: card.dataset.category, btn, card});
+    }
+  });
+  if (!pending.length) { toast('이미 모두 추가됨'); return; }
+  let done = 0;
+  pending.forEach(({rule, category, btn, card}) => {
+    doAdd(rule, category, (id) => {
+      btn.textContent = '추가됨 ✓';
+      btn.classList.add('added');
+      card.classList.add('added');
+      done++;
+      if (done === pending.length) toast(`${cat} — ${done}개 추가 완료`);
+    });
+  });
+}
+
+function addAllVisible() {
+  const cards = document.querySelectorAll('.suggestion-card:not([style*="none"])');
+  let pending = [];
+  cards.forEach(card => {
+    const btn = card.querySelector('.btn-add');
+    if (!btn.classList.contains('added')) {
+      pending.push({rule: card.dataset.rule, category: card.dataset.category, btn, card});
+    }
+  });
+  if (!pending.length) { toast('이미 모두 추가됨'); return; }
+  if (!confirm(`${pending.length}개 패턴을 모두 추가하시겠습니까?`)) return;
+  let done = 0;
+  pending.forEach(({rule, category, btn, card}) => {
+    doAdd(rule, category, (id) => {
+      btn.textContent = '추가됨 ✓';
+      btn.classList.add('added');
+      card.classList.add('added');
+      done++;
+      if (done === pending.length) toast(`${done}개 패턴 추가 완료!`);
+    });
+  });
+}
+
+function exportPrompt() {
+  fetch('/api/export-prompt')
+  .then(r => r.json())
+  .then(d => {
+    if (d.status !== 'ok') { toast('오류'); return; }
+    document.getElementById('prompt-text').value = d.prompt;
+    document.getElementById('prompt-count').textContent = d.pattern_count;
+    document.getElementById('prompt-modal').style.display = 'block';
+  });
+}
+
+function copyPrompt() {
+  const ta = document.getElementById('prompt-text');
+  navigator.clipboard.writeText(ta.value).then(() => toast('클립보드에 복사됨'));
+}
+
+let activeCat = '';
+function filterSuggestions(cat, btn) {
+  activeCat = cat;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.cat-section').forEach(section => {
+    section.style.display = (!cat || section.dataset.cat === cat) ? '' : 'none';
+  });
+}
+</script>
+
+</body>
+</html>

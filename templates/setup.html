@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 설정</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.3px; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+
+  main { padding: 48px 32px; max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .sub { font-size: 14px; color: #666; margin-bottom: 40px; }
+
+  .card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 32px; }
+
+  .field { margin-bottom: 24px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 8px; }
+  .field input, .field select { width: 100%; background: #0f0f13; border: 1px solid #3a3a4a; border-radius: 8px; color: #fff; padding: 10px 14px; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+  .field input:focus, .field select:focus { border-color: #6c63ff; }
+  .field .hint { font-size: 12px; color: #555; margin-top: 6px; }
+
+  .btn-save { width: 100%; background: #6c63ff; color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 8px; }
+  .btn-save:hover { background: #7c73ff; }
+
+  .info-box { background: #12121c; border: 1px solid #2a2a3a; border-radius: 8px; padding: 16px; margin-top: 24px; font-size: 13px; color: #666; line-height: 1.7; }
+  .info-box strong { color: #aaa; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/setup" class="active">설정</a>
+</nav>
+
+<main>
+  <h1>설정</h1>
+  <p class="sub">API 키와 자동 시뮬레이션 스케줄을 설정합니다.</p>
+
+  <div class="card">
+    <form method="POST" action="/setup">
+      <div class="field">
+        <label>OpenAI API 키</label>
+        <input type="password" name="api_key" value="{{ config.openai_api_key }}" placeholder="sk-..." required>
+        <div class="hint">GPT-4o를 사용합니다. 키는 로컬에만 저장됩니다.</div>
+      </div>
+
+      <div class="field">
+        <label>하루 시뮬레이션 횟수</label>
+        <select name="simulations_per_day">
+          {% for n in [1, 3, 5, 10, 20] %}
+          <option value="{{ n }}" {% if config.simulations_per_day == n %}selected{% endif %}>{{ n }}회</option>
+          {% endfor %}
+        </select>
+        <div class="hint">자동 실행 시 하루에 몇 번 시뮬레이션을 돌릴지 설정합니다.</div>
+      </div>
+
+      <div class="field">
+        <label>자동 실행 시간</label>
+        <select name="simulation_hour">
+          {% for h in range(24) %}
+          <option value="{{ h }}" {% if config.simulation_hour == h %}selected{% endif %}>{{ '%02d'|format(h) }}:00</option>
+          {% endfor %}
+        </select>
+        <div class="hint">매일 이 시간에 자동으로 시뮬레이션이 실행됩니다.</div>
+      </div>
+
+      <button type="submit" class="btn-save">저장</button>
+    </form>
+  </div>
+
+  <div class="info-box">
+    <strong>동작 방식</strong><br>
+    매일 설정한 시간에 랜덤 업종/과제 시나리오를 생성하고, 현재 누적된 패턴으로 판단합니다.<br>
+    신뢰도 70% 미만이거나 패턴 공백이 있는 케이스는 대시보드에 검토 요청으로 표시됩니다.<br>
+    매주 월요일 오전 8시에 주간 리포트가 자동 생성됩니다.
+  </div>
+</main>
+
+</body>
+</html>

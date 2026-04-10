@@ -1,0 +1,6 @@
+thinking_brain.db
+*.pyc
+__pycache__/
+.env
+*.log
+ngrok.log

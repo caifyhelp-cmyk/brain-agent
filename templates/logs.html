@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 대화 로그</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav .badge { background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 10px; margin-left: 4px; }
+
+  main { padding: 32px; max-width: 1000px; margin: 0 auto; }
+  h2 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 20px; }
+
+  .filter-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .filter-row input { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 8px; padding: 8px 14px; color: #fff; font-size: 13px; outline: none; }
+  .filter-row input:focus { border-color: #6c63ff; }
+  .filter-row input::placeholder { color: #555; }
+
+  .conv-list { display: flex; flex-direction: column; gap: 8px; }
+  .conv-item { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; text-decoration: none; color: inherit; transition: border-color 0.15s; cursor: pointer; }
+  .conv-item:hover { border-color: #6c63ff55; }
+  .conv-avatar { width: 36px; height: 36px; border-radius: 50%; background: #6c63ff22; border: 1px solid #6c63ff44; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #9c93ff; flex-shrink: 0; }
+  .conv-avatar.owner { background: #51cf6622; border-color: #51cf6644; color: #51cf66; }
+  .conv-body { flex: 1; min-width: 0; }
+  .conv-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+  .conv-topic { font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-meta { text-align: right; flex-shrink: 0; }
+  .conv-date { font-size: 12px; color: #555; margin-bottom: 4px; }
+  .conv-count { font-size: 12px; color: #6c63ff; }
+  .role-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
+  .role-badge.owner { background: #51cf6622; color: #51cf66; }
+  .role-badge.employee { background: #6c63ff22; color: #9c93ff; }
+
+  .empty { text-align: center; color: #444; font-size: 14px; padding: 60px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/chat">대화</a>
+  <a href="/logs" class="active">로그</a>
+  <a href="/review">패턴 검토{% if pending > 0 %}<span class="badge">{{ pending }}</span>{% endif %}</a>
+  <a href="/patterns">패턴</a>
+</nav>
+
+<main>
+  <h2>대화 로그</h2>
+
+  <div class="filter-row">
+    <input type="text" id="search_input" placeholder="이름 또는 주제 검색..." oninput="filterConvs()" />
+  </div>
+
+  <div class="conv-list" id="conv_list">
+    {% if not conversations %}
+    <div class="empty">아직 대화 기록이 없습니다.</div>
+    {% else %}
+    {% for c in conversations %}
+    <a class="conv-item" href="/logs/{{ c.id }}">
+      <div class="conv-avatar {{ c.user_role }}">{{ c.user_name[0] }}</div>
+      <div class="conv-body">
+        <div class="conv-name">
+          {{ c.user_name }}
+          <span class="role-badge {{ c.user_role }}">{{ '오너' if c.user_role == 'owner' else '직원' }}</span>
+        </div>
+        <div class="conv-topic">{{ c.topic or '(주제 없음)' }}</div>
+      </div>
+      <div class="conv-meta">
+        <div class="conv-date">{{ c.created_at[:16] }}</div>
+        <div class="conv-count">{{ c.message_count }}개 메시지</div>
+      </div>
+    </a>
+    {% endfor %}
+    {% endif %}
+  </div>
+</main>
+
+<script>
+function filterConvs() {
+  const q = document.getElementById('search_input').value.toLowerCase();
+  document.querySelectorAll('.conv-item').forEach(el => {
+    const text = el.textContent.toLowerCase();
+    el.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

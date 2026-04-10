@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 대화 시작</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.3px; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav .badge { background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 10px; margin-left: 4px; }
+
+  main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+
+  .start-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; padding: 40px; width: 100%; max-width: 440px; }
+  h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: #666; margin-bottom: 32px; line-height: 1.5; }
+
+  .field { margin-bottom: 18px; }
+  label { display: block; font-size: 12px; color: #888; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px; }
+  input[type=text], input[type=password] {
+    width: 100%; background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 8px;
+    padding: 10px 14px; color: #fff; font-size: 14px; outline: none; transition: border 0.15s;
+  }
+  input:focus { border-color: #6c63ff; }
+  input::placeholder { color: #444; }
+
+  .role-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .role-tab { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #2a2a3a; background: #0f0f13;
+    color: #888; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .role-tab.active { background: #6c63ff22; border-color: #6c63ff; color: #9c93ff; }
+
+  .pin-field { display: none; }
+  .pin-field.show { display: block; }
+
+  .btn-start { width: 100%; background: #6c63ff; color: #fff; border: none; border-radius: 8px;
+    padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 8px; }
+  .btn-start:hover { background: #7c73ff; }
+  .btn-start:disabled { background: #333; cursor: not-allowed; }
+
+  .err { color: #ff6b6b; font-size: 13px; margin-top: 10px; display: none; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/chat" class="active">대화</a>
+  <a href="/logs">로그</a>
+  <a href="/review">패턴 검토{% if pending > 0 %}<span class="badge">{{ pending }}</span>{% endif %}</a>
+  <a href="/patterns">패턴</a>
+</nav>
+
+<main>
+  <div class="start-card">
+    <h1>뇌와 대화하기</h1>
+    <p class="subtitle">기획, 전략, 콘텐츠 — 뭐든 꺼내세요.<br>뇌가 같이 생각합니다.</p>
+
+    <div class="field">
+      <label>이름</label>
+      <input type="text" id="user_name" placeholder="홍길동" />
+    </div>
+
+    <div class="field">
+      <label>역할</label>
+      <div class="role-tabs">
+        <div class="role-tab active" data-role="employee" onclick="setRole('employee')">직원</div>
+        <div class="role-tab" data-role="owner" onclick="setRole('owner')">오너</div>
+      </div>
+    </div>
+
+    <div class="pin-field" id="pin_field">
+      <div class="field">
+        <label>오너 PIN</label>
+        <input type="password" id="owner_pin" placeholder="••••" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>주제 (선택)</label>
+      <input type="text" id="topic" placeholder="오늘 얘기할 내용을 간단히..." />
+    </div>
+
+    <button class="btn-start" onclick="startChat()">대화 시작</button>
+    <div class="err" id="err_msg"></div>
+  </div>
+</main>
+
+<script>
+let currentRole = 'employee';
+
+function setRole(role) {
+  currentRole = role;
+  document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-role="${role}"]`).classList.add('active');
+  document.getElementById('pin_field').classList.toggle('show', role === 'owner');
+}
+
+async function startChat() {
+  const name = document.getElementById('user_name').value.trim();
+  const pin = document.getElementById('owner_pin').value.trim();
+  const topic = document.getElementById('topic').value.trim();
+  const errEl = document.getElementById('err_msg');
+  errEl.style.display = 'none';
+
+  if (!name) { showErr('이름을 입력하세요'); return; }
+
+  const btn = document.querySelector('.btn-start');
+  btn.disabled = true; btn.textContent = '시작 중...';
+
+  const res = await fetch('/api/chat/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({user_name: name, user_role: currentRole, pin, topic})
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = '대화 시작';
+
+  if (data.ok) {
+    window.location.href = `/chat/${data.conversation_id}?name=${encodeURIComponent(name)}`;
+  } else {
+    showErr(data.error || '오류가 발생했습니다');
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById('err_msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+document.getElementById('user_name').addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+document.getElementById('topic').addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+</script>
+</body>
+</html>

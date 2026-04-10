@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 트레이닝</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+
+  main { padding: 32px; max-width: 1100px; margin: 0 auto; }
+
+  /* 시작 화면 */
+  #start-screen { text-align: center; padding: 80px 0; }
+  #start-screen h1 { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+  #start-screen p { font-size: 15px; color: #666; margin-bottom: 40px; line-height: 1.7; }
+  .btn-start { background: #6c63ff; color: #fff; border: none; padding: 14px 36px; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+  .btn-start:hover { background: #7c73ff; }
+  .btn-start:disabled { background: #444; cursor: not-allowed; }
+
+  /* 트레이닝 화면 */
+  #train-screen { display: none; }
+  .train-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+  /* 시나리오 카드 */
+  .scenario-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 24px; }
+  .scenario-card .mode-badge { display: inline-block; font-size: 11px; font-weight: 700; background: #6c63ff22; color: #9c93ff; border: 1px solid #6c63ff44; padding: 3px 10px; border-radius: 4px; margin-bottom: 16px; }
+  .scenario-card .industry { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .scenario-card .size { font-size: 13px; color: #666; margin-bottom: 20px; }
+  .field-row { margin-bottom: 14px; }
+  .field-row .label { font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .field-row .value { font-size: 14px; color: #ccc; line-height: 1.6; }
+  .stress-point { background: #1f1a2a; border: 1px solid #6c63ff33; border-radius: 6px; padding: 12px 14px; margin-top: 16px; font-size: 13px; color: #9c93ff; line-height: 1.6; }
+  .stress-point::before { content: "도전 포인트 — "; font-weight: 700; }
+
+  /* 응답 카드 */
+  .response-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; }
+  .response-card h3 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .response-card .hint { font-size: 13px; color: #555; margin-bottom: 16px; line-height: 1.6; }
+  .response-card textarea { flex: 1; min-height: 280px; background: #0f0f13; border: 1px solid #3a3a4a; border-radius: 8px; color: #e0e0e0; padding: 14px; font-size: 14px; font-family: inherit; outline: none; resize: vertical; line-height: 1.7; transition: border-color 0.15s; }
+  .response-card textarea:focus { border-color: #6c63ff; }
+  .btn-submit { margin-top: 12px; background: #6c63ff; color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+  .btn-submit:hover { background: #7c73ff; }
+  .btn-submit:disabled { background: #444; cursor: not-allowed; }
+
+  /* 결과 화면 */
+  #result-screen { display: none; }
+  .score-header { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 28px 32px; margin-bottom: 24px; display: flex; align-items: center; gap: 32px; }
+  .score-circle { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; flex-shrink: 0; }
+  .score-circle.high { background: #51cf6622; color: #51cf66; border: 2px solid #51cf6644; }
+  .score-circle.mid { background: #fcc41922; color: #fcc419; border: 2px solid #fcc41944; }
+  .score-circle.low { background: #ff6b6b22; color: #ff6b6b; border: 2px solid #ff6b6b44; }
+  .score-header .summary { font-size: 15px; color: #ccc; line-height: 1.7; flex: 1; }
+
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .result-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 20px; }
+  .result-card h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; }
+  .result-card h3.green { color: #51cf66; }
+  .result-card h3.orange { color: #ff9f43; }
+  .result-card h3.purple { color: #9c93ff; }
+  .result-card h3.blue { color: #74c0fc; }
+
+  .applied-item { padding: 10px 0; border-bottom: 1px solid #1f1f2e; }
+  .applied-item:last-child { border-bottom: none; }
+  .applied-item .pid { font-size: 11px; color: #51cf66; font-weight: 700; margin-bottom: 3px; }
+  .applied-item .reason { font-size: 13px; color: #aaa; line-height: 1.5; }
+
+  .missed-item { padding: 10px 0; border-bottom: 1px solid #1f1f2e; }
+  .missed-item:last-child { border-bottom: none; }
+  .missed-item .pid { font-size: 11px; color: #ff9f43; font-weight: 700; margin-bottom: 3px; }
+  .missed-item .what { font-size: 13px; color: #ccc; margin-bottom: 4px; line-height: 1.5; }
+  .missed-item .why { font-size: 12px; color: #888; line-height: 1.5; }
+
+  .insight-item { padding: 10px 12px; background: #1a1530; border: 1px solid #6c63ff33; border-radius: 6px; font-size: 13px; color: #c0b8ff; line-height: 1.6; margin-bottom: 8px; display: flex; gap: 10px; align-items: flex-start; }
+  .insight-item:last-child { margin-bottom: 0; }
+  .insight-item .add-btn { background: none; border: 1px solid #6c63ff66; color: #9c93ff; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; flex-shrink: 0; transition: all 0.15s; white-space: nowrap; margin-top: 1px; }
+  .insight-item .add-btn:hover { background: #6c63ff33; }
+  .insight-item .add-btn.added { background: #51cf6622; border-color: #51cf6644; color: #51cf66; }
+  .insight-item .text { flex: 1; }
+
+  .expansion-item { padding: 8px 0; border-bottom: 1px solid #1f1f2e; font-size: 13px; color: #74c0fc; line-height: 1.6; }
+  .expansion-item:last-child { border-bottom: none; }
+  .expansion-item::before { content: "→ "; color: #555; }
+
+  .btn-next { width: 100%; background: #1a1a24; border: 1px solid #2a2a3a; color: #aaa; padding: 14px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; margin-top: 8px; }
+  .btn-next:hover { background: #2a2a3a; color: #fff; }
+
+  /* 최근 세션 */
+  .recent-title { font-size: 13px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.6px; margin: 40px 0 16px; }
+  .session-item { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 8px; padding: 16px 20px; margin-bottom: 10px; display: flex; align-items: center; gap: 16px; }
+  .session-score { font-size: 22px; font-weight: 800; min-width: 48px; }
+  .session-score.high { color: #51cf66; }
+  .session-score.mid { color: #fcc419; }
+  .session-score.low { color: #ff6b6b; }
+  .session-info .industry { font-size: 14px; color: #ccc; font-weight: 600; }
+  .session-info .date { font-size: 12px; color: #555; margin-top: 2px; }
+  .session-summary { font-size: 13px; color: #888; flex: 1; line-height: 1.5; }
+
+  .loading { text-align: center; padding: 40px; color: #555; font-size: 14px; }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #333; border-top-color: #6c63ff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 10px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty { color: #555; font-size: 14px; text-align: center; padding: 32px; }
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 13px; display: none; z-index: 100; border-left: 3px solid #6c63ff; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train" class="active">트레이닝</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/setup">설정</a>
+</nav>
+
+<main>
+
+  <!-- 시작 화면 -->
+  <div id="start-screen">
+    <h1>오늘의 케이스</h1>
+    <p>기존 패턴이 도전받는 복합 시나리오가 생성됩니다.<br>
+    당신의 판단을 입력하면 패턴 기준으로 분석하고 새로운 통찰을 도출합니다.</p>
+    <button class="btn-start" id="startBtn" onclick="loadScenario()">케이스 받기</button>
+  </div>
+
+  <!-- 트레이닝 화면 -->
+  <div id="train-screen">
+    <div class="train-layout">
+      <!-- 시나리오 -->
+      <div class="scenario-card">
+        <div class="mode-badge">도전 케이스</div>
+        <div class="industry" id="s-industry"></div>
+        <div class="size" id="s-size"></div>
+        <div class="field-row">
+          <div class="label">핵심 과제</div>
+          <div class="value" id="s-challenge"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">상황</div>
+          <div class="value" id="s-context"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">목표</div>
+          <div class="value" id="s-goal"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">보유 자산</div>
+          <div class="value" id="s-assets"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">제약</div>
+          <div class="value" id="s-constraints"></div>
+        </div>
+        <div class="stress-point" id="s-stress"></div>
+      </div>
+
+      <!-- 응답 -->
+      <div class="response-card">
+        <h3>당신의 판단</h3>
+        <p class="hint">
+          이 상황에서 어떻게 하겠습니까?<br>
+          채널, 전략, 우선순위, 이유를 자유롭게 써주세요.<br>
+          생각나는 대로 적으면 됩니다.
+        </p>
+        <textarea id="userResponse" placeholder="예: 먼저 경쟁사 조사를 하고, 기존 고객 DB를 활용해서..."></textarea>
+        <button class="btn-submit" id="submitBtn" onclick="evaluate()">판단 제출 → 분석</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="result-screen">
+    <!-- 점수 + 요약 -->
+    <div class="score-header">
+      <div class="score-circle" id="score-circle"></div>
+      <div class="summary" id="result-summary"></div>
+    </div>
+
+    <div class="result-grid">
+      <!-- 잘 적용한 패턴 -->
+      <div class="result-card">
+        <h3 class="green">올바르게 적용된 패턴</h3>
+        <div id="applied-list"></div>
+      </div>
+
+      <!-- 빠진 패턴 -->
+      <div class="result-card">
+        <h3 class="orange">놓친 패턴</h3>
+        <div id="missed-list"></div>
+      </div>
+
+      <!-- 새로운 통찰 -->
+      <div class="result-card">
+        <h3 class="purple">새로운 통찰 — 패턴 후보</h3>
+        <div id="insight-list"></div>
+      </div>
+
+      <!-- 확장 각도 -->
+      <div class="result-card">
+        <h3 class="blue">사고 확장 각도</h3>
+        <div id="expansion-list"></div>
+      </div>
+    </div>
+
+    <button class="btn-next" onclick="resetToStart()">다음 케이스 받기</button>
+  </div>
+
+  <!-- 최근 트레이닝 세션 -->
+  {% if recent_sessions %}
+  <div class="recent-title">최근 트레이닝</div>
+  {% for s in recent_sessions %}
+  <div class="session-item">
+    <div class="session-score {% if s.score >= 75 %}high{% elif s.score >= 55 %}mid{% else %}low{% endif %}">
+      {{ s.score|int }}
+    </div>
+    <div class="session-info">
+      <div class="industry">{{ s.scenario.industry }}</div>
+      <div class="date">{{ s.created_at[:16] }}</div>
+    </div>
+    <div class="session-summary">{{ s.evaluation.summary }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+let currentScenario = null;
+
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftColor = color || '#6c63ff';
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2500);
+}
+
+function loadScenario() {
+  const btn = document.getElementById('startBtn');
+  btn.disabled = true;
+  btn.textContent = '케이스 생성 중...';
+
+  fetch('/api/new-scenario', {method: 'POST'})
+  .then(r => r.json())
+  .then(data => {
+    if (data.status !== 'ok') {
+      toast(data.message, '#ff6b6b');
+      btn.disabled = false;
+      btn.textContent = '케이스 받기';
+      return;
+    }
+    currentScenario = data.scenario;
+    fillScenario(data.scenario);
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('train-screen').style.display = 'block';
+    document.getElementById('userResponse').value = '';
+    document.getElementById('userResponse').focus();
+    btn.disabled = false;
+    btn.textContent = '케이스 받기';
+  })
+  .catch(() => {
+    toast('오류가 발생했습니다', '#ff6b6b');
+    btn.disabled = false;
+    btn.textContent = '케이스 받기';
+  });
+}
+
+function fillScenario(s) {
+  document.getElementById('s-industry').textContent = s.industry || '';
+  document.getElementById('s-size').textContent = s.company_size || '';
+  document.getElementById('s-challenge').textContent = s.challenge || '';
+  document.getElementById('s-context').textContent = s.context || '';
+  document.getElementById('s-goal').textContent = s.goal || '';
+  document.getElementById('s-assets').textContent = s.assets || '';
+  document.getElementById('s-constraints').textContent = s.constraints || '';
+  document.getElementById('s-stress').textContent = s.stress_point || '';
+}
+
+function evaluate() {
+  const response = document.getElementById('userResponse').value.trim();
+  if (!response) { toast('판단 내용을 입력하세요', '#ff6b6b'); return; }
+  if (!currentScenario) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '분석 중...';
+
+  fetch('/api/evaluate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({scenario: currentScenario, user_response: response})
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    btn.textContent = '판단 제출 → 분석';
+    if (data.status !== 'ok') {
+      toast(data.message, '#ff6b6b');
+      return;
+    }
+    showResult(data.evaluation);
+  })
+  .catch(() => {
+    toast('오류가 발생했습니다', '#ff6b6b');
+    btn.disabled = false;
+    btn.textContent = '판단 제출 → 분석';
+  });
+}
+
+function showResult(ev) {
+  const score = ev.overall_score || 0;
+  const circle = document.getElementById('score-circle');
+  circle.textContent = score;
+  circle.className = 'score-circle ' + (score >= 75 ? 'high' : score >= 55 ? 'mid' : 'low');
+
+  document.getElementById('result-summary').textContent = ev.summary || '';
+
+  // 올바르게 적용
+  const appliedList = document.getElementById('applied-list');
+  appliedList.innerHTML = '';
+  if (ev.applied_correctly && ev.applied_correctly.length) {
+    ev.applied_correctly.forEach(a => {
+      appliedList.innerHTML += `<div class="applied-item">
+        <div class="pid">패턴 #${a.pattern_id}</div>
+        <div class="reason">${a.reason}</div>
+      </div>`;
+    });
+  } else {
+    appliedList.innerHTML = '<div class="empty" style="padding:16px;text-align:left;">명확히 적용된 패턴 없음</div>';
+  }
+
+  // 빠진 패턴
+  const missedList = document.getElementById('missed-list');
+  missedList.innerHTML = '';
+  if (ev.missed_patterns && ev.missed_patterns.length) {
+    ev.missed_patterns.forEach(m => {
+      missedList.innerHTML += `<div class="missed-item">
+        <div class="pid">패턴 #${m.pattern_id} — ${m.what_was_missed}</div>
+        <div class="why">${m.why_matters}</div>
+      </div>`;
+    });
+  } else {
+    missedList.innerHTML = '<div class="empty" style="padding:16px;text-align:left;color:#51cf66;">놓친 패턴 없음</div>';
+  }
+
+  // 새로운 통찰
+  const insightList = document.getElementById('insight-list');
+  insightList.innerHTML = '';
+  if (ev.new_insights && ev.new_insights.length) {
+    ev.new_insights.forEach((ins, i) => {
+      insightList.innerHTML += `<div class="insight-item">
+        <span class="text">${ins}</span>
+        <button class="add-btn" id="ins-btn-${i}" onclick="addInsight(${i}, '${encodeURIComponent(ins)}')">+ 패턴 추가</button>
+      </div>`;
+    });
+  } else {
+    insightList.innerHTML = '<div class="empty" style="padding:16px;text-align:left;">새로운 통찰 없음</div>';
+  }
+
+  // 확장 각도
+  const expList = document.getElementById('expansion-list');
+  expList.innerHTML = '';
+  if (ev.expansion_angles && ev.expansion_angles.length) {
+    ev.expansion_angles.forEach(e => {
+      expList.innerHTML += `<div class="expansion-item">${e}</div>`;
+    });
+  } else {
+    expList.innerHTML = '<div class="empty" style="padding:16px;text-align:left;">없음</div>';
+  }
+
+  document.getElementById('train-screen').style.display = 'none';
+  document.getElementById('result-screen').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+function addInsight(i, encodedRule) {
+  const rule = decodeURIComponent(encodedRule);
+  fetch('/api/add-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rule, category: '기타'})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.status === 'ok') {
+      const btn = document.getElementById('ins-btn-' + i);
+      btn.textContent = '추가됨';
+      btn.classList.add('added');
+      btn.disabled = true;
+      toast('패턴 추가 완료 (ID: ' + d.new_id + ')');
+    }
+  });
+}
+
+function resetToStart() {
+  document.getElementById('result-screen').style.display = 'none';
+  document.getElementById('train-screen').style.display = 'none';
+  document.getElementById('start-screen').style.display = 'block';
+  currentScenario = null;
+  window.scrollTo(0, 0);
+}
+</script>
+
+</body>
+</html>

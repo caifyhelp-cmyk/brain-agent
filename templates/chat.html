@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 대화</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 24px; display: flex; align-items: center; gap: 24px; height: 56px; flex-shrink: 0; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav .badge { background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 10px; margin-left: 4px; }
+  nav .spacer { flex: 1; }
+  nav .conv-info { font-size: 12px; color: #555; }
+  nav .conv-info span { color: #888; }
+
+  .chat-wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; max-width: 860px; width: 100%; margin: 0 auto; padding: 0 16px; }
+
+  .messages { flex: 1; overflow-y: auto; padding: 24px 0 16px; display: flex; flex-direction: column; gap: 16px; }
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 4px; }
+
+  .msg { display: flex; flex-direction: column; max-width: 76%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+  .msg-label { font-size: 11px; color: #555; margin-bottom: 4px; }
+  .msg.user .msg-label { text-align: right; }
+
+  .bubble { padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+  .msg.user .bubble { background: #6c63ff; color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant .bubble { background: #1a1a24; border: 1px solid #2a2a3a; color: #e0e0e0; border-bottom-left-radius: 4px; }
+
+  .msg-actions { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .action-btn { border: 1px solid #2a2a3a; background: #0f0f13; color: #888; font-size: 11px; padding: 3px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+  .action-btn:hover { border-color: #6c63ff; color: #9c93ff; }
+  .action-btn.owner-add { border-color: #51cf6633; color: #51cf66; }
+  .action-btn.owner-add:hover { background: #1f2d1f; }
+
+  .typing { align-self: flex-start; display: flex; align-items: center; gap: 4px; padding: 12px 16px; background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; border-bottom-left-radius: 4px; }
+  .dot { width: 6px; height: 6px; background: #555; border-radius: 50%; animation: bounce 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+  .input-area { padding: 16px 0 20px; flex-shrink: 0; }
+  .input-row { display: flex; gap: 8px; align-items: flex-end; }
+  textarea { flex: 1; background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 12px 16px; color: #fff; font-size: 14px; font-family: inherit; line-height: 1.5; resize: none; outline: none; max-height: 160px; min-height: 46px; transition: border 0.15s; }
+  textarea:focus { border-color: #6c63ff; }
+  textarea::placeholder { color: #444; }
+  .send-btn { background: #6c63ff; border: none; border-radius: 10px; width: 46px; height: 46px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; flex-shrink: 0; }
+  .send-btn:hover { background: #7c73ff; }
+  .send-btn:disabled { background: #333; cursor: not-allowed; }
+  .send-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+  /* 패턴 요청 모달 */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-bg.show { display: flex; }
+  .modal { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; padding: 28px; width: 100%; max-width: 480px; }
+  .modal h3 { font-size: 16px; color: #fff; margin-bottom: 16px; }
+  .modal label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; font-weight: 600; }
+  .modal input, .modal textarea { width: 100%; background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 8px; padding: 9px 12px; color: #fff; font-size: 13px; font-family: inherit; outline: none; margin-bottom: 12px; }
+  .modal textarea { min-height: 80px; resize: vertical; }
+  .modal input:focus, .modal textarea:focus { border-color: #6c63ff; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  .modal-btns button { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-cancel { background: #2a2a3a; color: #aaa; }
+  .btn-submit { background: #6c63ff; color: #fff; }
+  .btn-submit:hover { background: #7c73ff; }
+
+  /* 패턴 추출 패널 (오너) */
+  .extract-bar { background: #1a1a24; border-top: 1px solid #2a2a3a; padding: 10px 0; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+  .extract-bar button { background: #1f2d1f; color: #51cf66; border: 1px solid #51cf6633; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  .extract-bar button:hover { background: #2a3d2a; }
+  .extract-bar .hint { font-size: 12px; color: #555; }
+
+  /* 추출 결과 */
+  .extract-results { background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 10px; padding: 16px; margin: 10px 0; display: none; }
+  .extract-results.show { display: block; }
+  .extract-item { border: 1px solid #2a2a3a; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .extract-item:last-child { margin-bottom: 0; }
+  .extract-item .cat { font-size: 11px; color: #6c63ff; font-weight: 600; margin-bottom: 4px; }
+  .extract-item .rule { font-size: 13px; color: #ddd; line-height: 1.5; }
+  .extract-item .add-btn { background: #51cf6622; color: #51cf66; border: 1px solid #51cf6644; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .extract-item .add-btn:hover { background: #51cf6633; }
+  .extract-item .add-btn.added { background: #2a3a2a; color: #666; cursor: default; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/chat">대화</a>
+  {% if is_owner %}<a href="/logs">로그</a>
+  <a href="/review">패턴 검토{% if pending > 0 %}<span class="badge">{{ pending }}</span>{% endif %}</a>{% endif %}
+  <a href="/patterns">패턴</a>
+  <div class="spacer"></div>
+  <div class="conv-info"><span>{{ conv.user_name }}</span> · {{ conv.topic or '새 대화' }}</div>
+</nav>
+
+<div class="chat-wrap">
+  <div class="messages" id="messages">
+    {% for m in messages %}
+    <div class="msg {{ m.role }}">
+      <div class="msg-label">{{ '🧠 뇌' if m.role == 'assistant' else m.user_name }}</div>
+      <div class="bubble">{{ m.content }}</div>
+      {% if m.role == 'assistant' %}
+      <div class="msg-actions">
+        {% if is_owner %}
+        <button class="action-btn owner-add" onclick="openAddModal('{{ m.content | replace("'", "\\'") | replace('\n', '\\n') }}')">+ 패턴 추가</button>
+        {% else %}
+        <button class="action-btn" onclick="openRequestModal('{{ m.content | replace("'", "\\'") | replace('\n', '\\n') }}')">패턴 요청</button>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% if not messages %}
+    <div style="text-align:center; color:#444; font-size:14px; padding:60px 20px;">
+      뇌에게 뭐든 꺼내세요.<br>기획, 전략, 콘텐츠, 아이디어 — 다 됩니다.
+    </div>
+    {% endif %}
+  </div>
+
+  {% if is_owner %}
+  <div class="extract-bar">
+    <button onclick="extractPatterns()">대화에서 패턴 추출</button>
+    <span class="hint">이 대화에서 패턴 후보를 자동으로 찾아줍니다</span>
+  </div>
+  <div class="extract-results" id="extract_results"></div>
+  {% endif %}
+
+  <div class="input-area">
+    <div class="input-row">
+      <textarea id="msg_input" placeholder="메시지를 입력하세요..." rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send_btn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 패턴 요청 모달 (직원) -->
+<div class="modal-bg" id="request_modal">
+  <div class="modal">
+    <h3>패턴 추가 요청</h3>
+    <label>카테고리</label>
+    <input type="text" id="req_category" placeholder="예: 콘텐츠_기획, 숏폼_흥미패턴" />
+    <label>패턴 내용</label>
+    <textarea id="req_rule" placeholder="어떤 상황에서 어떻게 한다..."></textarea>
+    <label>맥락 (선택)</label>
+    <textarea id="req_context" placeholder="이 부분이 왜 중요하다고 생각했나요?" style="min-height:60px;"></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('request_modal')">취소</button>
+      <button class="btn-submit" onclick="submitRequest()">요청</button>
+    </div>
+  </div>
+</div>
+
+<!-- 패턴 직접 추가 모달 (오너) -->
+<div class="modal-bg" id="add_modal">
+  <div class="modal">
+    <h3>패턴 직접 추가</h3>
+    <label>카테고리</label>
+    <input type="text" id="add_category" placeholder="예: 콘텐츠_기획" />
+    <label>패턴 내용</label>
+    <textarea id="add_rule"></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('add_modal')">취소</button>
+      <button class="btn-submit" onclick="submitAdd()">추가</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CONV_ID = {{ conv.id }};
+const USER_NAME = {{ conv.user_name | tojson }};
+const IS_OWNER = {{ 'true' if is_owner else 'false' }};
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+function scrollBottom() {
+  const m = document.getElementById('messages');
+  m.scrollTop = m.scrollHeight;
+}
+
+scrollBottom();
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msg_input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const sendBtn = document.getElementById('send_btn');
+  sendBtn.disabled = true;
+
+  // 내 메시지 바로 표시
+  appendMessage('user', text, USER_NAME);
+  input.value = '';
+  input.style.height = 'auto';
+
+  // 타이핑 인디케이터
+  const typingEl = document.createElement('div');
+  typingEl.className = 'typing';
+  typingEl.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+  document.getElementById('messages').appendChild(typingEl);
+  scrollBottom();
+
+  const res = await fetch('/api/chat/message', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({conversation_id: CONV_ID, message: text, user_name: USER_NAME})
+  });
+  const data = await res.json();
+
+  typingEl.remove();
+  sendBtn.disabled = false;
+
+  if (data.ok) {
+    appendMessage('assistant', data.reply, '뇌', data.message_id);
+  } else {
+    appendMessage('assistant', '오류: ' + (data.error || '알 수 없는 오류'), '뇌');
+  }
+  scrollBottom();
+}
+
+function appendMessage(role, content, name, msgId) {
+  const msgs = document.getElementById('messages');
+
+  // 빈 상태 메시지 제거
+  const empty = msgs.querySelector('[style*="padding:60px"]');
+  if (empty) empty.remove();
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  let actionsHtml = '';
+  if (role === 'assistant') {
+    if (IS_OWNER) {
+      actionsHtml = `<div class="msg-actions"><button class="action-btn owner-add" onclick="openAddModal(this)">+ 패턴 추가</button></div>`;
+    } else {
+      actionsHtml = `<div class="msg-actions"><button class="action-btn" onclick="openRequestModal(this)">패턴 요청</button></div>`;
+    }
+  }
+
+  div.innerHTML = `
+    <div class="msg-label">${role === 'assistant' ? '🧠 뇌' : name}</div>
+    <div class="bubble" data-content="${escHtml(content)}">${escHtml(content).replace(/\n/g, '<br>')}</div>
+    ${actionsHtml}
+  `;
+  msgs.appendChild(div);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// 패턴 요청 (직원)
+let currentMsgContent = '';
+function openRequestModal(btn) {
+  const bubble = btn.closest('.msg').querySelector('.bubble');
+  currentMsgContent = bubble.dataset.content || bubble.textContent;
+  document.getElementById('req_rule').value = '';
+  document.getElementById('req_category').value = '';
+  document.getElementById('req_context').value = '';
+  document.getElementById('request_modal').classList.add('show');
+}
+
+async function submitRequest() {
+  const category = document.getElementById('req_category').value.trim() || '기타';
+  const rule = document.getElementById('req_rule').value.trim();
+  const context = document.getElementById('req_context').value.trim();
+  if (!rule) { alert('패턴 내용을 입력하세요'); return; }
+
+  const res = await fetch('/api/chat/request-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({conversation_id: CONV_ID, category, rule, requested_by: USER_NAME, context})
+  });
+  const data = await res.json();
+  if (data.ok) { closeModal('request_modal'); alert('오너에게 검토 요청을 보냈습니다.'); }
+  else { alert(data.error); }
+}
+
+// 패턴 직접 추가 (오너)
+function openAddModal(btn) {
+  if (typeof btn === 'string') {
+    document.getElementById('add_rule').value = btn.slice(0, 200);
+  } else {
+    const bubble = btn.closest('.msg').querySelector('.bubble');
+    document.getElementById('add_rule').value = (bubble.dataset.content || bubble.textContent).slice(0, 200);
+  }
+  document.getElementById('add_category').value = '';
+  document.getElementById('add_modal').classList.add('show');
+}
+
+async function submitAdd() {
+  const category = document.getElementById('add_category').value.trim() || '기타';
+  const rule = document.getElementById('add_rule').value.trim();
+  if (!rule) { alert('패턴 내용을 입력하세요'); return; }
+
+  const res = await fetch('/api/chat/add-pattern-direct', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category, rule})
+  });
+  const data = await res.json();
+  if (data.ok) { closeModal('add_modal'); alert(`패턴 추가 완료 (ID: ${data.new_id})`); }
+  else { alert(data.error); }
+}
+
+// 패턴 추출 (오너)
+async function extractPatterns() {
+  const btn = document.querySelector('.extract-bar button');
+  btn.textContent = '추출 중...';
+  btn.disabled = true;
+
+  const res = await fetch('/api/chat/extract-patterns', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({conversation_id: CONV_ID})
+  });
+  const data = await res.json();
+  btn.textContent = '대화에서 패턴 추출';
+  btn.disabled = false;
+
+  const container = document.getElementById('extract_results');
+  if (!data.ok || !data.patterns.length) {
+    container.innerHTML = '<div style="color:#555;font-size:13px;padding:8px;">추출된 패턴이 없습니다.</div>';
+    container.classList.add('show');
+    return;
+  }
+
+  container.innerHTML = data.patterns.map((p, i) => `
+    <div class="extract-item" id="ex_${i}">
+      <div>
+        <div class="cat">${escHtml(p.category)}</div>
+        <div class="rule">${escHtml(p.rule)}</div>
+      </div>
+      <button class="add-btn" onclick="addExtracted(${i}, '${escHtml(p.category)}', '${escHtml(p.rule)}')">추가</button>
+    </div>
+  `).join('');
+  container.classList.add('show');
+}
+
+async function addExtracted(idx, category, rule) {
+  const res = await fetch('/api/chat/add-pattern-direct', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category, rule})
+  });
+  const data = await res.json();
+  if (data.ok) {
+    const btn = document.querySelector(`#ex_${idx} .add-btn`);
+    btn.textContent = '추가됨';
+    btn.classList.add('added');
+    btn.disabled = true;
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+// 모달 배경 클릭 시 닫기
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('show'); });
+});
+</script>
+</body>
+</html>

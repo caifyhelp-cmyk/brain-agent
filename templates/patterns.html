@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 패턴</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.3px; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav .spacer { flex: 1; }
+  nav .total { font-size: 13px; color: #666; }
+
+  main { padding: 32px; max-width: 1100px; margin: 0 auto; }
+  h2 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+
+  /* 3축 */
+  .axes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+  .axis-card { background: #1a1a24; border: 1px solid #6c63ff33; border-radius: 10px; padding: 20px; border-left: 3px solid #6c63ff; }
+  .axis-card .name { font-weight: 700; color: #9c93ff; font-size: 14px; margin-bottom: 8px; }
+  .axis-card .desc { font-size: 13px; color: #888; line-height: 1.6; }
+
+  /* 패턴 추가 폼 */
+  .add-form { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 20px; margin-bottom: 32px; display: flex; gap: 12px; align-items: flex-end; }
+  .add-form .field { flex: 1; }
+  .add-form .field-sm { width: 180px; flex-shrink: 0; }
+  .add-form label { display: block; font-size: 12px; color: #666; margin-bottom: 6px; }
+  .add-form input, .add-form select, .add-form textarea { width: 100%; background: #0f0f13; border: 1px solid #3a3a4a; border-radius: 6px; color: #fff; padding: 9px 12px; font-size: 13px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+  .add-form input:focus, .add-form select:focus, .add-form textarea:focus { border-color: #6c63ff; }
+  .add-form textarea { line-height: 1.5; }
+  .add-form .btn-add { background: #6c63ff; color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+  .add-form .btn-add:hover { background: #7c73ff; }
+
+  /* 카테고리별 패턴 */
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .cat-block { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 20px; }
+  .cat-title { font-size: 12px; font-weight: 700; color: #6c63ff; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; display: flex; justify-content: space-between; }
+  .cat-title .cnt { color: #555; font-weight: 400; }
+
+  .pattern-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #1f1f2e; }
+  .pattern-item:last-child { border-bottom: none; }
+  .pattern-item .pid { font-size: 11px; color: #555; min-width: 24px; padding-top: 2px; }
+  .pattern-item .rule { font-size: 13px; color: #ccc; flex: 1; line-height: 1.5; }
+  .pattern-item .del { background: none; border: none; color: #555; cursor: pointer; font-size: 16px; padding: 0 4px; transition: color 0.15s; flex-shrink: 0; }
+  .pattern-item .del:hover { color: #ff6b6b; }
+  .pattern-item .rule { cursor: text; }
+  .pattern-item .rule:hover { color: #fff; }
+  .rule-edit { width: 100%; background: #0f0f13; border: 1px solid #6c63ff; border-radius: 4px; color: #fff; padding: 4px 8px; font-size: 13px; font-family: inherit; outline: none; resize: none; line-height: 1.5; }
+
+  /* 검색 + 탭 */
+  .search-bar { background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 8px; color: #e0e0e0; padding: 9px 14px; font-size: 13px; width: 100%; outline: none; transition: border-color 0.15s; margin-bottom: 14px; }
+  .search-bar:focus { border-color: #6c63ff; }
+  .cat-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px; }
+  .cat-tab { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 6px; color: #888; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .cat-tab:hover { color: #fff; border-color: #3a3a4a; }
+  .cat-tab.active { background: #6c63ff22; border-color: #6c63ff66; color: #9c93ff; }
+
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 13px; display: none; z-index: 100; border-left: 3px solid #6c63ff; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns" class="active">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/setup">설정</a>
+  <span class="spacer"></span>
+  <span class="total">총 {{ total }}개 패턴</span>
+</nav>
+
+<main>
+
+  <!-- 3축 -->
+  <h2>핵심 3축</h2>
+  <div class="axes">
+    {% for ax in axes %}
+    <div class="axis-card">
+      <div class="name">{{ ax.name }}</div>
+      <div class="desc">{{ ax.description }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 패턴 추가 -->
+  <div class="add-form">
+    <div class="field-sm">
+      <label>카테고리</label>
+      <select id="new-cat">
+        <option>채널 판단</option>
+        <option>전환 판단</option>
+        <option>자산 활용</option>
+        <option>구조/전략 판단</option>
+        <option>런칭/가격 판단</option>
+        <option>파트너십 판단</option>
+        <option>실행/의사결정 메타</option>
+        <option>콘텐츠 기획</option>
+        <option>기타</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>패턴 내용 <span style="font-size:11px;color:#555;font-weight:400;">(Enter 또는 Ctrl+Enter로 저장)</span></label>
+      <textarea id="new-rule" placeholder="새 패턴을 입력하세요..." rows="2" style="resize:vertical;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addPattern()} else if(event.ctrlKey&&event.key==='Enter'){event.preventDefault();addPattern()}"></textarea>
+    </div>
+    <button class="btn-add" onclick="addPattern()">추가</button>
+  </div>
+
+  <!-- 검색 + 카테고리 탭 -->
+  <input class="search-bar" type="text" id="search-rule" placeholder="패턴 검색..." oninput="filterPatterns()">
+  <div class="cat-tabs">
+    <button class="cat-tab active" onclick="filterCat('', this)">전체</button>
+    {% for cat in categories.keys() %}
+    <button class="cat-tab" onclick="filterCat('{{ cat }}', this)">{{ cat }}</button>
+    {% endfor %}
+  </div>
+
+  <!-- 패턴 목록 -->
+  <div class="layout" id="pattern-layout">
+    {% for cat, patterns in categories.items() %}
+    <div class="cat-block" data-cat="{{ cat }}">
+      <div class="cat-title">
+        <span>{{ cat }}</span>
+        <span class="cnt">{{ patterns|length }}개</span>
+      </div>
+      {% for p in patterns %}
+      <div class="pattern-item" id="p-{{ p.id }}">
+        <span class="pid">#{{ p.id }}</span>
+        <span class="rule" ondblclick="startEdit({{ p.id }}, this)">{{ p.rule }}</span>
+        <button class="del" onclick="deletePattern({{ p.id }})" title="삭제">×</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <div style="font-size:12px;color:#444;text-align:center;margin-top:12px;">더블클릭으로 패턴 수정</div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftColor = color || '#6c63ff';
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2500);
+}
+
+function addPattern() {
+  const ruleEl = document.getElementById('new-rule');
+  const rule = ruleEl.value.trim();
+  const cat = document.getElementById('new-cat').value;
+  if (!rule) { toast('패턴 내용을 입력하세요', '#ff6b6b'); return; }
+  fetch('/api/add-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rule, category: cat})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.status === 'ok') {
+      ruleEl.value = '';
+      ruleEl.focus();
+      // DOM 직접 삽입 — 리로드 없음
+      const catKey = cat.replace(/[^a-zA-Z가-힣\/]/g, '');
+      let block = Array.from(document.querySelectorAll('.cat-block')).find(b =>
+        b.querySelector('.cat-title span:first-child')?.textContent.trim() === cat
+      );
+      if (block) {
+        const cntEl = block.querySelector('.cat-title .cnt');
+        const newCnt = parseInt(cntEl.textContent) + 1;
+        cntEl.textContent = newCnt + '개';
+        const item = document.createElement('div');
+        item.className = 'pattern-item';
+        item.id = 'p-' + d.new_id;
+        item.innerHTML = `<span class="pid">#${d.new_id}</span><span class="rule">${rule}</span><button class="del" onclick="deletePattern(${d.new_id})" title="삭제">×</button>`;
+        block.appendChild(item);
+      }
+      const totalEl = document.querySelector('nav .total');
+      if (totalEl) {
+        const m = totalEl.textContent.match(/\d+/);
+        if (m) totalEl.textContent = '총 ' + (parseInt(m[0]) + 1) + '개 패턴';
+      }
+      toast('패턴 추가 완료 (ID: ' + d.new_id + ')');
+    } else {
+      toast(d.message, '#ff6b6b');
+    }
+  });
+}
+
+function deletePattern(id) {
+  if (!confirm('#' + id + ' 패턴을 삭제하시겠습니까?')) return;
+  fetch('/api/delete-pattern/' + id, {method: 'POST'})
+  .then(r => r.json())
+  .then(() => {
+    document.getElementById('p-' + id).style.display = 'none';
+    toast('패턴 삭제됨');
+  });
+}
+
+// ── 검색 + 탭 필터 ───────────────────────────────
+let activeCat = '';
+function filterCat(cat, btn) {
+  activeCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterPatterns();
+}
+function filterPatterns() {
+  const q = document.getElementById('search-rule').value.toLowerCase();
+  document.querySelectorAll('.cat-block').forEach(block => {
+    const catName = block.dataset.cat;
+    const catMatch = !activeCat || catName === activeCat;
+    let visibleCount = 0;
+    block.querySelectorAll('.pattern-item').forEach(item => {
+      if (item.style.display === 'none' && item.querySelector('.rule-edit')) return; // 편집 중
+      const rule = item.querySelector('.rule, .rule-edit')?.textContent.toLowerCase() || '';
+      const show = catMatch && (!q || rule.includes(q));
+      item.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
+    });
+    block.style.display = (catMatch && (!q || visibleCount > 0)) ? '' : 'none';
+  });
+}
+
+// ── 인라인 편집 ──────────────────────────────────
+function startEdit(id, ruleSpan) {
+  if (ruleSpan.querySelector('.rule-edit')) return; // 이미 편집 중
+  const original = ruleSpan.textContent;
+  ruleSpan.innerHTML = '';
+  const ta = document.createElement('textarea');
+  ta.className = 'rule-edit';
+  ta.value = original;
+  ta.rows = Math.max(2, Math.ceil(original.length / 50));
+  ruleSpan.appendChild(ta);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+
+  function save() {
+    const newRule = ta.value.trim();
+    if (!newRule || newRule === original) { ruleSpan.textContent = original; return; }
+    fetch('/api/edit-pattern/' + id, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({rule: newRule})
+    })
+    .then(r => r.json())
+    .then(d => {
+      ruleSpan.textContent = d.status === 'ok' ? newRule : original;
+      if (d.status === 'ok') toast('패턴 수정됨 (#' + id + ')');
+    })
+    .catch(() => { ruleSpan.textContent = original; });
+  }
+
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { ruleSpan.textContent = original; }
+  });
+  ta.addEventListener('blur', save);
+}
+</script>
+
+</body>
+</html>

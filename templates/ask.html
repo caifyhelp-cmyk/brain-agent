@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 판단 요청</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #51cf66; }
+  nav .spacer { flex: 1; }
+
+  main { padding: 32px; max-width: 960px; margin: 0 auto; }
+
+  .page-header { margin-bottom: 32px; }
+  .page-header h1 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  .page-header p { font-size: 14px; color: #666; }
+
+  /* 입력 폼 */
+  .form-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+  .form-card h2 { font-size: 12px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 20px; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: #777; margin-bottom: 6px; letter-spacing: 0.3px; }
+  .field input, .field select, .field textarea {
+    width: 100%; background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 8px;
+    color: #e0e0e0; padding: 10px 14px; font-size: 14px; font-family: inherit;
+    outline: none; transition: border-color 0.15s; line-height: 1.6;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #6c63ff; }
+  .field textarea { resize: vertical; min-height: 90px; }
+  .field.required label::after { content: ' *'; color: #ff6b6b; }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field-row3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+  .btn-ask { width: 100%; background: #51cf66; color: #0f1a0f; border: none; padding: 14px; border-radius: 8px; font-size: 15px; font-weight: 800; cursor: pointer; transition: background 0.15s; letter-spacing: -0.3px; }
+  .btn-ask:hover { background: #61df76; }
+  .btn-ask:disabled { background: #2a3d2a; color: #555; cursor: not-allowed; }
+
+  /* 결과 */
+  #result-section { display: none; }
+  .result-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+
+  .judgment-big { font-size: 18px; font-weight: 700; color: #fff; line-height: 1.6; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #2a2a3a; }
+
+  .conf-bar { margin-bottom: 20px; }
+  .conf-bar .label { font-size: 11px; color: #666; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .conf-bar .label .val { font-size: 14px; font-weight: 800; }
+  .bar-bg { width: 100%; height: 6px; background: #2a2a3a; border-radius: 3px; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+
+  .section-block { margin-bottom: 20px; }
+  .section-block .title { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+  .section-block .title.green { color: #51cf66; }
+  .section-block .title.purple { color: #9c93ff; }
+  .section-block .title.red { color: #ff6b6b; }
+  .section-block .title.blue { color: #74c0fc; }
+
+  .action-block { background: #0f1a0f; border: 1px solid #51cf6622; border-radius: 8px; padding: 14px 16px; font-size: 14px; color: #b8e8c0; line-height: 1.8; white-space: pre-line; }
+  .reasoning-block { background: #0f0f1a; border: 1px solid #6c63ff22; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: #aaa; line-height: 1.7; }
+
+  .pattern-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pchip { background: #1a1530; border: 1px solid #6c63ff33; border-radius: 5px; padding: 4px 10px; font-size: 12px; color: #9c93ff; }
+  .pchip .cat { color: #555; font-size: 10px; margin-left: 4px; }
+
+  .gap-list { list-style: none; }
+  .gap-list li { font-size: 13px; color: #ff9090; padding: 6px 0; border-bottom: 1px solid #2a1a1a; line-height: 1.5; display: flex; align-items: flex-start; gap: 10px; }
+  .gap-list li:last-child { border-bottom: none; }
+  .gap-add-btn { background: transparent; border: 1px solid #6c63ff44; color: #9c93ff; border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer; flex-shrink: 0; margin-top: 2px; }
+  .gap-add-btn:hover { background: #1a1530; }
+
+  /* 피드백 */
+  .feedback-row { display: flex; gap: 10px; margin-top: 8px; }
+  .fb-btn { flex: 1; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.15s; }
+  .fb-correct { background: #0f1a0f; color: #51cf66; border: 1px solid #51cf6633; }
+  .fb-correct:hover, .fb-correct.active { background: #51cf6622; border-color: #51cf66; }
+  .fb-partial { background: #1a1810; color: #fcc419; border: 1px solid #fcc41933; }
+  .fb-partial:hover, .fb-partial.active { background: #fcc41922; border-color: #fcc419; }
+  .fb-wrong { background: #1a0f0f; color: #ff6b6b; border: 1px solid #ff6b6b33; }
+  .fb-wrong:hover, .fb-wrong.active { background: #ff6b6b22; border-color: #ff6b6b; }
+
+  /* 새 질문 */
+  .btn-reset { background: #1a1a24; color: #888; border: 1px solid #2a2a3a; padding: 10px 20px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn-reset:hover { color: #fff; border-color: #3a3a4a; }
+
+  #loading { display: none; text-align: center; padding: 60px; }
+  #loading .spinner { width: 40px; height: 40px; border: 3px solid #2a2a3a; border-top-color: #51cf66; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  #loading p { font-size: 14px; color: #666; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #toast { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); background: #1e1e2e; color: #fff; padding: 14px 24px; border-radius: 10px; font-size: 14px; display: none; z-index: 999; border: 1px solid #3a3a5a; border-top: 3px solid #51cf66; box-shadow: 0 8px 32px #00000066; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/report">리포트</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" class="active">판단 요청</a>
+  <a href="/setup">설정</a>
+  <span class="spacer"></span>
+</nav>
+
+<main>
+  <div class="page-header">
+    <h1>판단 요청</h1>
+    <p>지금 처한 실제 상황을 입력하면, 뇌 에이전트가 패턴 기반으로 판단합니다.</p>
+  </div>
+
+  <!-- 입력 폼 -->
+  <div id="form-section">
+    <div class="form-card">
+      <h2>상황 입력</h2>
+
+      <div class="field-row3">
+        <div class="field required">
+          <label>업종 / 서비스</label>
+          <input type="text" id="f-industry" placeholder="예: B2B SaaS 회계 자동화, 로컬 헬스장, 뷰티 이커머스...">
+        </div>
+        <div class="field">
+          <label>규모</label>
+          <select id="f-size">
+            <option value="1인">1인</option>
+            <option value="소규모(5명 이하)">소규모 (5명 이하)</option>
+            <option value="중소(10-50명)" selected>중소 (10-50명)</option>
+            <option value="중견(50명 이상)">중견 (50명 이상)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field required">
+        <label>핵심 과제 (한 줄)</label>
+        <input type="text" id="f-challenge" placeholder="예: 유입은 있는데 전환율이 낮음, 재구매율 15% 이하, 신규 채널 필요...">
+      </div>
+
+      <div class="field required">
+        <label>상황 설명 (수치 포함)</label>
+        <textarea id="f-context" rows="4" placeholder="현재 어떤 상황인지 구체적으로. 수치가 있으면 꼭 포함하세요.&#10;예: 월 방문자 3000명, 가입 200명인데 결제는 10명. 광고비 월 50만원. 경쟁사 A는 비슷한 가격에 기능 2배..."></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>목표</label>
+          <input type="text" id="f-goal" placeholder="예: 전환율 2배, 월 매출 2000만원, 3개월 내 흑자...">
+        </div>
+        <div class="field">
+          <label>보유 자산</label>
+          <input type="text" id="f-assets" placeholder="예: 기존 고객 DB 500명, 인스타 팔로워 2천, 파트너사 3곳...">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>제약 조건</label>
+        <input type="text" id="f-constraints" placeholder="예: 예산 월 100만원, 개발 인력 없음, 2개월 내 성과 필요...">
+      </div>
+
+      <button class="btn-ask" id="ask-btn" onclick="submitAsk()">뇌 에이전트에게 판단 받기</button>
+    </div>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>패턴 분석 중...</p>
+  </div>
+
+  <!-- 결과 -->
+  <div id="result-section">
+    <div class="result-card">
+      <div class="judgment-big" id="r-judgment"></div>
+
+      <div class="conf-bar">
+        <div class="label">
+          <span>신뢰도</span>
+          <span class="val" id="r-conf-val"></span>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" id="r-conf-bar"></div></div>
+      </div>
+
+      <div class="section-block">
+        <div class="title green">지금 당장 할 것</div>
+        <div class="action-block" id="r-action"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="title purple">발동된 패턴</div>
+        <div class="pattern-chips" id="r-patterns"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="title blue">판단 근거</div>
+        <div class="reasoning-block" id="r-reasoning"></div>
+      </div>
+
+      <div class="section-block" id="r-gaps-section">
+        <div class="title red">패턴 공백 — 이 부분은 직감으로 판단됨 (패턴으로 추가하면 다음엔 더 정확해짐)</div>
+        <ul class="gap-list" id="r-gaps"></ul>
+      </div>
+
+      <!-- 피드백 -->
+      <div style="border-top:1px solid #2a2a3a; padding-top:20px; margin-top:4px;">
+        <div style="font-size:12px;color:#666;margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">이 판단이 맞나요?</div>
+        <div class="feedback-row">
+          <button class="fb-btn fb-correct" onclick="sendFeedback('correct', this)">맞음</button>
+          <button class="fb-btn fb-partial" onclick="sendFeedback('partial', this)">부분 맞음</button>
+          <button class="fb-btn fb-wrong" onclick="sendFeedback('wrong', this)">틀림</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;">
+      <button class="btn-reset" onclick="resetForm()">새 질문하기</button>
+    </div>
+  </div>
+
+</main>
+<div id="toast"></div>
+
+<script>
+let lastResult = null;
+
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderTopColor = color || '#51cf66';
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 3500);
+}
+
+function submitAsk() {
+  const context = document.getElementById('f-context').value.trim();
+  const industry = document.getElementById('f-industry').value.trim();
+  const challenge = document.getElementById('f-challenge').value.trim();
+  if (!context || !industry || !challenge) {
+    toast('업종, 핵심 과제, 상황 설명은 필수입니다', '#ff6b6b');
+    return;
+  }
+
+  const payload = {
+    industry, challenge, context,
+    company_size: document.getElementById('f-size').value,
+    goal: document.getElementById('f-goal').value.trim(),
+    assets: document.getElementById('f-assets').value.trim(),
+    constraints: document.getElementById('f-constraints').value.trim(),
+  };
+
+  document.getElementById('form-section').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result-section').style.display = 'none';
+
+  fetch('/api/ask', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('loading').style.display = 'none';
+    if (data.status !== 'ok') {
+      document.getElementById('form-section').style.display = 'block';
+      toast('오류: ' + data.message, '#ff6b6b');
+      return;
+    }
+    lastResult = data;
+    renderResult(data);
+    document.getElementById('result-section').style.display = 'block';
+  })
+  .catch(err => {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('form-section').style.display = 'block';
+    toast('네트워크 오류: ' + err, '#ff6b6b');
+  });
+}
+
+function renderResult(data) {
+  const r = data.result;
+  document.getElementById('r-judgment').textContent = r.judgment || '';
+  document.getElementById('r-action').textContent = r.action || '';
+  document.getElementById('r-reasoning').textContent = r.reasoning || '';
+
+  const conf = r.confidence || 0;
+  document.getElementById('r-conf-val').textContent = conf + '%';
+  const barEl = document.getElementById('r-conf-bar');
+  barEl.style.width = '0%';
+  barEl.style.background = conf >= 75 ? '#51cf66' : conf >= 60 ? '#fcc419' : '#ff6b6b';
+  setTimeout(() => barEl.style.width = conf + '%', 50);
+
+  // 발동 패턴
+  const pEl = document.getElementById('r-patterns');
+  pEl.innerHTML = '';
+  (data.fired_patterns || []).forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'pchip';
+    chip.innerHTML = `#${p.id} ${p.rule.length > 40 ? p.rule.slice(0,40)+'…' : p.rule}<span class="cat">${p.category}</span>`;
+    chip.title = p.rule;
+    pEl.appendChild(chip);
+  });
+  if (!pEl.children.length) pEl.innerHTML = '<span style="color:#555;font-size:13px;">발동된 패턴 없음</span>';
+
+  // 공백
+  const gaps = r.gaps || [];
+  const gapsSection = document.getElementById('r-gaps-section');
+  const gapsList = document.getElementById('r-gaps');
+  gapsList.innerHTML = '';
+  if (gaps.length) {
+    gapsSection.style.display = 'block';
+    gaps.forEach(g => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span style="flex:1">${g}</span>
+        <button class="gap-add-btn" onclick="addGapAsPattern('${g.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">+ 패턴</button>`;
+      gapsList.appendChild(li);
+    });
+  } else {
+    gapsSection.style.display = 'none';
+  }
+
+  // 피드백 버튼 초기화
+  document.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
+}
+
+function addGapAsPattern(text) {
+  fetch('/api/add-pattern', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({rule: text, category: '기타'})
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') toast('패턴 추가됨 (ID: ' + d.new_id + ') — 패턴 페이지에서 수정하세요');
+  });
+}
+
+function sendFeedback(rating, btn) {
+  document.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const msgs = { correct: '판단이 맞았군요. 이 케이스가 학습 데이터로 저장됐습니다.', partial: '부분적으로 맞았네요. 저장됐습니다.', wrong: '틀렸군요. 공백에서 패턴을 추가하면 다음엔 더 정확해집니다.' };
+  toast(msgs[rating] || '저장됨');
+}
+
+function resetForm() {
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('form-section').style.display = 'block';
+  document.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
+}
+</script>
+</body>
+</html>

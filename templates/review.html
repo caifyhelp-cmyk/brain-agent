@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 패턴 검토</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav .badge { background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 10px; margin-left: 4px; }
+
+  main { padding: 32px; max-width: 900px; margin: 0 auto; }
+  h2 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 20px; }
+
+  .req-item { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+  .req-item.dismissed { opacity: 0.4; }
+  .req-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .req-who { font-size: 12px; color: #888; }
+  .req-who strong { color: #ddd; }
+  .req-date { font-size: 12px; color: #555; }
+
+  .req-cat { font-size: 11px; color: #6c63ff; font-weight: 600; margin-bottom: 6px; }
+  .req-rule { font-size: 14px; color: #fff; line-height: 1.6; margin-bottom: 10px; }
+
+  .req-context { background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #888; line-height: 1.5; margin-bottom: 14px; }
+  .req-context-label { font-size: 11px; color: #555; margin-bottom: 5px; font-weight: 600; }
+
+  .conv-link { font-size: 12px; color: #6c63ff; text-decoration: none; margin-bottom: 14px; display: inline-block; }
+  .conv-link:hover { color: #9c93ff; }
+
+  .req-actions { display: flex; gap: 8px; }
+  .btn-approve { background: #51cf6622; color: #51cf66; border: 1px solid #51cf6644; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn-approve:hover { background: #51cf6633; }
+  .btn-dismiss { background: #2a2a3a; color: #888; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn-dismiss:hover { background: #3a3a4a; color: #fff; }
+  .status-approved { font-size: 12px; color: #51cf66; font-weight: 600; }
+  .status-dismissed { font-size: 12px; color: #555; }
+
+  .empty { text-align: center; color: #444; font-size: 14px; padding: 60px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/chat">대화</a>
+  <a href="/logs">로그</a>
+  <a href="/review" class="active">패턴 검토{% if pending > 0 %}<span class="badge">{{ pending }}</span>{% endif %}</a>
+  <a href="/patterns">패턴</a>
+</nav>
+
+<main>
+  <h2>패턴 추가 요청 검토</h2>
+
+  {% if not requests %}
+  <div class="empty">대기 중인 패턴 요청이 없습니다.</div>
+  {% else %}
+  {% for r in requests %}
+  <div class="req-item" id="req_{{ r.id }}">
+    <div class="req-header">
+      <div class="req-who"><strong>{{ r.requested_by }}</strong> 님의 요청</div>
+      <div class="req-date">{{ r.created_at[:16] }}</div>
+    </div>
+
+    <div class="req-cat">{{ r.proposed_category }}</div>
+    <div class="req-rule">{{ r.proposed_rule }}</div>
+
+    {% if r.context %}
+    <div class="req-context-label">요청 이유</div>
+    <div class="req-context">{{ r.context }}</div>
+    {% endif %}
+
+    <a href="/logs/{{ r.conversation_id }}" class="conv-link" target="_blank">대화 전체 보기 →</a>
+
+    <div class="req-actions" id="actions_{{ r.id }}">
+      <button class="btn-approve" onclick="approve({{ r.id }})">승인 — 패턴 추가</button>
+      <button class="btn-dismiss" onclick="dismiss({{ r.id }})">기각</button>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</main>
+
+<script>
+async function approve(id) {
+  const res = await fetch(`/api/review/approve/${id}`, {method: 'POST'});
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById(`actions_${id}`).innerHTML = `<span class="status-approved">✓ 승인됨 — 패턴 #${data.new_pattern_id} 추가</span>`;
+    document.getElementById(`req_${id}`).style.opacity = '0.6';
+  } else {
+    alert(data.error);
+  }
+}
+
+async function dismiss(id) {
+  const res = await fetch(`/api/review/dismiss/${id}`, {method: 'POST'});
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById(`actions_${id}`).innerHTML = `<span class="status-dismissed">기각됨</span>`;
+    document.getElementById(`req_${id}`).classList.add('dismissed');
+  } else {
+    alert(data.error);
+  }
+}
+</script>
+</body>
+</html>
