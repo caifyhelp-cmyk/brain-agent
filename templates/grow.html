@@ -59,9 +59,11 @@
   .err { color: #ff6b6b; font-size: 12px; margin-top: 8px; display: none; }
 
   /* 새 케이스 버튼 */
-  .btn-new-case { background: #1a1a24; border: 1px solid #2a2a3a; color: #666; border-radius: 7px; padding: 5px 12px; font-size: 11px; cursor: pointer; transition: all 0.15s; }
-  .btn-new-case:hover { border-color: #6c63ff55; color: #9c93ff; }
-  .new-case-bar { padding: 6px 20px; border-top: 1px solid #1a1a24; display: flex; justify-content: flex-end; flex-shrink: 0; }
+  .btn-new-case { background: #6c63ff33; border: 1px solid #6c63ff88; color: #c0bbff; border-radius: 7px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn-new-case:hover { background: #6c63ff55; color: #fff; }
+  .btn-new-case:disabled { opacity: 0.5; cursor: not-allowed; }
+  .new-case-bar { padding: 8px 20px; border-top: 1px solid #2a2a3a; display: flex; justify-content: flex-end; flex-shrink: 0; background: #0f0f13; }
+  .empty-chat-msg { text-align: center; color: #444; font-size: 13px; padding: 60px 20px; line-height: 1.8; }
 
   /* CHAT */
   .chat-wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
@@ -350,10 +352,20 @@ async function loadOpeningCase() {
     });
     const data = await res.json();
     typingEl.remove();
-    if (data.ok) appendMsg('assistant', data.reply, '뇌');
+    if (data.ok) {
+      appendMsg('assistant', data.reply, '뇌');
+    } else {
+      showEmptyMsg(`케이스 생성 실패: ${data.error || '알 수 없는 오류'}\n아래 "새 케이스 받기"를 눌러 다시 시도하세요.`);
+    }
   } catch(e) {
     typingEl.remove();
+    showEmptyMsg('연결 오류가 발생했습니다.\n"새 케이스 받기"를 눌러 다시 시도하세요.');
   }
+}
+
+function showEmptyMsg(msg) {
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `<div class="empty-chat-msg">${esc(msg).replace(/\n/g,'<br>')}</div>`;
 }
 
 function showEntryErr(msg) {
