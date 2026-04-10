@@ -16,10 +16,14 @@ import chat as chat_engine
 from config_helper import get_config
 
 BASE_DIR = Path(__file__).parent
+CONFIG_PATH = BASE_DIR / "config.json"
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = os.environ.get('SECRET_KEY', 'brain-agent-secret-2024')
+
+# gunicorn으로 실행 시에도 DB 초기화
+db.init_db()
 
 
 def _owner_pin():
@@ -30,8 +34,7 @@ scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 # ── 스케줄 작업 ──────────────────────────────────────────
 
 def job_daily_simulations():
-    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
-    count = config.get('simulations_per_day', 5)
+    count = get_config().get('simulations_per_day', 5)
     print(f"[자동 실행] 오늘의 시뮬레이션 {count}건 시작")
     for i in range(count):
         try:
@@ -55,8 +58,7 @@ def job_weekly_report():
 
 @app.route('/')
 def dashboard():
-    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
-    has_key = bool(config.get('openai_api_key', '').strip())
+    has_key = bool(get_config().get('openai_api_key', '').strip())
     if not has_key:
         return redirect(url_for('setup'))
 
@@ -75,16 +77,19 @@ def dashboard():
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
+    config = get_config()
     if request.method == 'POST':
         api_key = request.form.get('api_key', '').strip()
         sims = int(request.form.get('simulations_per_day', 5))
         hour = int(request.form.get('simulation_hour', 9))
-        config = {'openai_api_key': api_key, 'simulations_per_day': sims, 'simulation_hour': hour}
-        CONFIG_PATH.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding='utf-8')
-        # 스케줄 재등록
+        # 로컬 환경에서만 config.json 저장
+        if not os.environ.get('DATABASE_URL'):
+            CONFIG_PATH = BASE_DIR / "config.json"
+            new_cfg = {'openai_api_key': api_key, 'simulations_per_day': sims,
+                       'simulation_hour': hour, 'owner_pin': config.get('owner_pin', '1234')}
+            CONFIG_PATH.write_text(json.dumps(new_cfg, ensure_ascii=False, indent=2), encoding='utf-8')
         _reschedule(hour)
         return redirect(url_for('dashboard'))
-    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
     return render_template('setup.html', config=config)
 
 
@@ -460,7 +465,8 @@ def api_synthesize():
 @app.route('/chat')
 def chat_start():
     pending = db.get_pending_pattern_request_count()
-    return render_template('chat_start.html', pending=pending)
+    is_owner = session.get('is_owner', False)
+    return render_template('chat_start.html', pending=pending, is_owner=is_owner)
 
 
 @app.route('/chat/<int:conv_id>')
@@ -513,13 +519,7 @@ def api_chat_message():
 
     # 첫 메시지로 topic 자동 설정
     if not conv['topic'] and conv['message_count'] == 0:
-        short_topic = user_message[:40]
-        db.get_conn()  # ensure connection
-        import sqlite3
-        conn = sqlite3.connect(str(BASE_DIR / 'thinking_brain.db'))
-        conn.execute('UPDATE conversations SET topic=? WHERE id=?', (short_topic, conv_id))
-        conn.commit()
-        conn.close()
+        db.update_conversation_topic(conv_id, user_message[:40])
 
     db.save_message(conv_id, 'user', user_message, user_name)
 
@@ -634,8 +634,7 @@ def _reschedule(sim_hour):
 if __name__ == '__main__':
     db.init_db()
 
-    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
-    sim_hour = config.get('simulation_hour', 9)
+    sim_hour = get_config().get('simulation_hour', 9)
 
     scheduler.add_job(job_daily_simulations, 'cron', hour=sim_hour, minute=0, id='daily_sim')
     scheduler.add_job(job_weekly_report, 'cron', day_of_week='mon', hour=8, minute=0, id='weekly_report')
