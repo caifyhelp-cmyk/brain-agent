@@ -203,23 +203,26 @@ def generate_opening_message(section: str) -> str:
     if section in ('content_youtube', 'content_blog'):
         return _generate_content_opening(section, client)
 
-    prompt = f"""인하우스 마케터가 직원에게 실제 클라이언트 케이스를 던지는 상황이다.
+    prompt = f"""인하우스 마케터가 직원에게 실제 클라이언트 케이스를 브리핑하는 상황이다.
 목적: 직원이 '{context}'을 직접 기획해보는 훈련.
 
-케이스 조건:
-- 다양한 업종 (헬스장, 스킨케어, 학원, 식당, SaaS, 인테리어, 의류 등 — 매번 다르게)
-- 마케팅/기획 관련 수치 포함 (월 매출, 예산, 고객 수, 캠페인 성과 등 — 전환율에 고착 금지)
-- 실제 마케터가 맞닥뜨리는 고민 담기
-- 보유 자산 포함 (기존 고객 DB, SNS, 후기, 파트너십 등)
+케이스에 반드시 포함할 내용 (추가 질문 없이 바로 기획할 수 있을 만큼 상세하게):
+1. 업종 + 사업 형태 (오프라인/온라인/혼합, 규모)
+2. 현재 상황 수치 (매출, 고객 수, 성장률 등 — 전환율 고착 금지, 다양한 지표 사용)
+3. 타깃 고객 (누구인지, 왜 오는지)
+4. 현재 마케팅/기획 현황 (지금 뭘 하고 있는지, 어디서 막혔는지)
+5. 보유 자산 (DB, SNS, 후기, 파트너십, 예산 등)
+6. 핵심 고민 (왜 지금 이 고민을 하는지 배경까지)
 
-케이스를 자연스러운 대화체로 던져라.
-형식 예시: "자, 케이스 하나 줄게. [상황 설명]. 이 상황에서 어떻게 하겠어?"
-조건: 한국어로, 250자 이내, 대화체로, 마지막은 반드시 질문으로 끝낼 것."""
+대화체로 자연스럽게 던져라. 딱딱한 보고서 형식 금지.
+업종은 의외의 업종도 좋음 (헬스장·카페·학원 반복 금지).
+마지막은 구체적인 질문으로 끝낼 것 ("이 상황에서 어떻게 하겠어?" 형태).
+한국어로, 600자 내외."""
 
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=350,
+        max_tokens=700,
         temperature=0.9
     )
     return response.choices[0].message.content
@@ -301,24 +304,29 @@ def _generate_content_opening(section: str, client) -> str:
     stage = random.choice(growth_stages)
     challenge = random.choice(stage['challenge_pool'])
 
-    prompt = f"""인하우스 마케터가 직원에게 {content_type} 기획 훈련 케이스를 던진다.
+    prompt = f"""인하우스 마케터가 직원에게 {content_type} 기획 훈련 케이스를 브리핑한다.
 
 클라이언트 상황:
 - 성장 단계: {stage['stage']} — {stage['desc']}
 - 핵심 고민: {challenge}
-- 업종: 자유롭게 설정 (흔한 업종 말고 의외의 업종도 좋음. 헬스장·카페·학원 반복 금지)
+- 업종: 자유롭게 설정 (의외의 업종 환영, 헬스장·카페·학원 반복 금지)
 
-위 조건으로 실제 같은 케이스를 대화체로 구성하라.
-- 업종에 맞는 구체적인 수치 포함 (팔로워 수, 운영 기간, 게시물 수, 평균 조회수 등)
-- 보유 자산은 성장 단계에 맞게 자연스럽게 포함
-- 전환율만 고정 지표로 쓰지 말 것
+케이스에 반드시 포함할 내용 (추가 질문 없이 바로 기획 들어갈 수 있을 만큼 상세하게):
+1. 업종 + 사업 구체적 설명 (규모, 운영 형태)
+2. 채널 현황 수치 (팔로워 수, 게시물 수, 평균 조회수, 업로드 주기 등 — 성장 단계에 맞게)
+3. 현재 올리고 있는 콘텐츠 스타일/주제
+4. 타깃 고객 (누가 보는지, 실제 고객이랑 맞는지)
+5. 보유 자산 (기존 콘텐츠 소스, 고객 후기, 예산, 협력 가능한 것들)
+6. 핵심 고민 배경 (왜 지금 이 고민이 생겼는지)
+
+대화체로 자연스럽게 던져라. 보고서 형식 금지.
 마지막은 "{content_type}으로 뭘 기획하겠어?" 형태 질문으로 끝낼 것.
-한국어, 300자 이내, 대화체."""
+한국어, 650자 내외."""
 
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=400,
+        max_tokens=750,
         temperature=1.0
     )
     return response.choices[0].message.content
