@@ -182,6 +182,15 @@ def init_db():
             status TEXT DEFAULT 'pending',
             reviewed_at TEXT
         )''',
+        f'''CREATE TABLE IF NOT EXISTS grow_candidates (
+            id {pk},
+            created_at TEXT DEFAULT ({now}),
+            conversation_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            rule TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            promoted_pattern_id INTEGER
+        )''',
     ]
 
     for sql in tables:
@@ -529,6 +538,71 @@ def get_real_case_stats():
     return {'total': total, 'avg_match': round(avg_match, 1), 'aligned': aligned, 'flagged_pending': flagged}
 
 
+# ── 성장 방 (grow_candidates) ─────────────────────────────
+
+def save_grow_candidates(conv_id: int, candidates: list) -> list:
+    """grow 대화에서 추출한 패턴 후보 저장 (별개 방)"""
+    conn = get_conn()
+    ph = _ph()
+    ids = []
+    for c in candidates:
+        new_id = _insert(conn,
+            f'INSERT INTO grow_candidates (conversation_id, category, rule) VALUES ({ph},{ph},{ph})',
+            (conv_id, c.get('category', '기타'), c.get('rule', ''))
+        )
+        if new_id:
+            ids.append(new_id)
+    conn.close()
+    return ids
+
+
+def get_grow_candidates(conv_id: int = None, status: str = 'pending') -> list:
+    conn = get_conn()
+    ph = _ph()
+    if conv_id:
+        rows = _fetchall(conn,
+            f'SELECT * FROM grow_candidates WHERE conversation_id={ph} AND status={ph} ORDER BY created_at DESC',
+            (conv_id, status))
+    else:
+        rows = _fetchall(conn,
+            f'SELECT * FROM grow_candidates WHERE status={ph} ORDER BY created_at DESC',
+            (status,))
+    conn.close()
+    return rows
+
+
+def promote_grow_candidate(candidate_id: int) -> int:
+    """grow 후보 → 메인 patterns_db 승격"""
+    conn = get_conn()
+    ph = _ph()
+    candidate = _fetchone(conn, f'SELECT * FROM grow_candidates WHERE id={ph}', (candidate_id,))
+    conn.close()
+    if not candidate:
+        return None
+    new_id = add_pattern(candidate['category'], candidate['rule'])
+    conn = get_conn()
+    _exec(conn,
+        f'UPDATE grow_candidates SET status={ph}, promoted_pattern_id={ph} WHERE id={ph}',
+        ('promoted', new_id, candidate_id))
+    conn.close()
+    return new_id
+
+
+def reject_grow_candidate(candidate_id: int):
+    conn = get_conn()
+    ph = _ph()
+    _exec(conn, f'UPDATE grow_candidates SET status={ph} WHERE id={ph}', ('rejected', candidate_id))
+    conn.close()
+
+
+def get_grow_candidate_count(status: str = 'pending') -> int:
+    conn = get_conn()
+    ph = _ph()
+    row = _fetchone(conn, f'SELECT COUNT(*) as cnt FROM grow_candidates WHERE status={ph}', (status,))
+    conn.close()
+    return (row or {}).get('cnt', 0)
+
+
 def get_pattern_contribution():
     conn = get_conn()
     rows = _fetchall(conn, 'SELECT patterns_fired, aligned FROM real_case_simulations WHERE patterns_fired IS NOT NULL')
@@ -628,6 +702,13 @@ def get_conversation_by_id(conversation_id: int):
     row = _fetchone(conn, f'SELECT * FROM conversations WHERE id={ph}', [conversation_id])
     conn.close()
     return row
+
+
+def update_conversation_topic(conversation_id: int, topic: str):
+    conn = get_conn()
+    ph = _ph()
+    _exec(conn, f'UPDATE conversations SET topic={ph} WHERE id={ph}', [topic, conversation_id])
+    conn.close()
 
 
 def get_all_conversations(limit: int = 100) -> list:

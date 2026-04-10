@@ -157,6 +157,7 @@
       <div style="padding: 8px 10px;">
         <div id="info_name" style="font-size:13px; color:#888;">-</div>
         <div id="info_role" style="font-size:11px; color:#555; margin-top:2px;">-</div>
+        <div id="phase_badge" style="display:none; margin-top:8px; font-size:11px; font-weight:700; padding:3px 8px; border-radius:5px; width:fit-content;"></div>
       </div>
     </div>
   </div>
@@ -195,6 +196,12 @@
     <div class="chat-wrap hidden" id="chat_area">
 
       <div class="messages" id="messages"></div>
+
+      <!-- 패턴 후보 패널 (3턴마다 자동 표시) -->
+      <div id="candidates_panel" style="display:none; background:#13131a; border-top:1px solid #2a2a3a; padding:12px 20px; flex-shrink:0;">
+        <div style="font-size:11px; color:#e8b84b; font-weight:700; letter-spacing:0.8px; margin-bottom:8px;">✦ 패턴 후보 발견</div>
+        <div id="candidates_list" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
 
       <div class="new-case-bar">
         <button class="btn-new-case" onclick="loadNewCase()">새 케이스 받기</button>
@@ -238,6 +245,7 @@ let currentContentType = '{{ content_type }}';
 let convId = null;
 let userName = '';
 let isOwner = false;
+let currentPhase = 1;
 let currentCase = null;
 
 const SECTION_META = {
@@ -324,9 +332,22 @@ async function enterSession() {
   convId = data.conversation_id;
   userName = name;
   isOwner = document.getElementById('is_owner_check').checked && pin.length > 0 && data.ok;
+  currentPhase = data.phase || 1;
 
   document.getElementById('info_name').textContent = name;
   document.getElementById('info_role').textContent = isOwner ? '오너' : '직원';
+
+  const badge = document.getElementById('phase_badge');
+  badge.style.display = 'block';
+  if (currentPhase === 2) {
+    badge.textContent = '2단계 — 심화';
+    badge.style.background = '#6c63ff33';
+    badge.style.color = '#9c93ff';
+  } else {
+    badge.textContent = '1단계 — 씨드 구축';
+    badge.style.background = '#51cf6622';
+    badge.style.color = '#51cf66';
+  }
 
   if (isOwner) {
     document.getElementById('nav_logs').classList.remove('hidden');
@@ -348,7 +369,7 @@ async function loadOpeningCase() {
     const res = await fetch('/api/grow/new-opening', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({conversation_id: convId, section: fullSection()})
+      body: JSON.stringify({conversation_id: convId, section: fullSection(), phase: currentPhase})
     });
     const data = await res.json();
     typingEl.remove();
@@ -382,7 +403,7 @@ async function loadNewCase() {
   const res = await fetch('/api/grow/new-opening', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({conversation_id: convId, section: fullSection()})
+    body: JSON.stringify({conversation_id: convId, section: fullSection(), phase: currentPhase})
   });
   const data = await res.json();
   btn.textContent = '새 케이스 받기'; btn.disabled = false;
@@ -426,9 +447,53 @@ async function sendMessage() {
   typingEl.remove();
   document.getElementById('send_btn').disabled = false;
 
-  if (data.ok) appendMsg('assistant', data.reply, '뇌', data.message_id);
-  else appendMsg('assistant', '오류: ' + (data.error || '-'), '뇌');
+  if (data.ok) {
+    appendMsg('assistant', data.reply, '뇌', data.message_id);
+    if (data.new_candidates && data.new_candidates.length > 0) {
+      showCandidates(data.new_candidates);
+    }
+  } else {
+    appendMsg('assistant', '오류: ' + (data.error || '-'), '뇌');
+  }
   scrollBottom();
+}
+
+function showCandidates(candidates) {
+  const panel = document.getElementById('candidates_panel');
+  const list = document.getElementById('candidates_list');
+  list.innerHTML = '';
+  candidates.forEach(c => {
+    const div = document.createElement('div');
+    div.style.cssText = 'background:#1a1a24;border:1px solid #2a2a3a;border-radius:7px;padding:8px 12px;font-size:12px;';
+    div.innerHTML = `
+      <div style="color:#e8b84b;font-size:10px;font-weight:700;margin-bottom:3px;">${esc(c.category)}</div>
+      <div style="color:#ccc;line-height:1.5;">${esc(c.rule)}</div>
+      ${isOwner ? `<div style="margin-top:6px;display:flex;gap:6px;">
+        <button onclick="promoteCandidate(this,'${esc(c.category)}','${esc(c.rule)}')" style="background:#51cf6622;border:1px solid #51cf6644;color:#51cf66;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;">뇌에 추가</button>
+        <button onclick="this.closest('div[style]').remove()" style="background:#2a2a3a;border:none;color:#666;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;">건너뜀</button>
+      </div>` : '<div style="color:#555;font-size:11px;margin-top:4px;">오너 검토 대기 중</div>'}
+    `;
+    list.appendChild(div);
+  });
+  panel.style.display = 'block';
+}
+
+async function promoteCandidate(btn, category, rule) {
+  const res = await fetch('/api/grow/candidates', {method:'GET'});
+  // 간단하게 직접 add-pattern-direct 호출
+  const r = await fetch('/api/chat/add-pattern-direct', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category, rule})
+  });
+  const d = await r.json();
+  if (d.ok) {
+    btn.textContent = '추가됨 ✓';
+    btn.disabled = true;
+    btn.style.background = '#51cf6644';
+  } else {
+    alert(d.error);
+  }
 }
 
 function appendMsg(role, content, name, msgId) {

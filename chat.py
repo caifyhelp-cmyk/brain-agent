@@ -179,6 +179,14 @@ JSON으로 반환:
         return {"error": "케이스 생성 실패"}
 
 
+PHASE_THRESHOLD = 50  # 이 수 이상이면 2단계
+
+
+def get_current_phase() -> int:
+    data = db.get_patterns()
+    return 2 if len(data.get('patterns', [])) >= PHASE_THRESHOLD else 1
+
+
 def generate_opening_message(section: str) -> str:
     """세션 시작 시 뇌가 먼저 던지는 케이스 메시지"""
     client = OpenAI(api_key=get_config().get('openai_api_key'))
@@ -209,6 +217,48 @@ def generate_opening_message(section: str) -> str:
         messages=[{"role": "user", "content": prompt}],
         max_tokens=350,
         temperature=0.9
+    )
+    return response.choices[0].message.content
+
+
+def generate_phase2_opening(section: str) -> str:
+    """2단계: 뇌가 케이스 + 자기 판단을 먼저 공유"""
+    client = OpenAI(api_key=get_config().get('openai_api_key'))
+    patterns_str = _build_patterns_str()
+
+    context_map = {
+        'marketing':       '마케팅 전략/채널/타겟',
+        'planning':        '사업 기획/캠페인',
+        'content_youtube': '유튜브 숏폼 영상',
+        'content_blog':    '네이버 블로그',
+    }
+    context = context_map.get(section, '마케팅')
+
+    prompt = f"""너는 축적된 판단 패턴을 가진 인하우스 마케터다.
+
+[판단 패턴]
+{patterns_str}
+
+역할:
+1. 다양한 업종의 실제 같은 클라이언트 케이스를 제시한다 (구체적 수치 포함)
+2. 위 패턴을 기반으로 너의 판단을 먼저 공유한다 (핵심만, 2~3줄)
+3. 상대에게 다른 각도나 추가 관점이 있는지 열린 질문을 던진다
+
+섹션: {context}
+조건: 한국어로, 대화체로, 400자 이내, 마지막은 반드시 열린 질문으로 끝낼 것
+
+형식:
+"자, 케이스 하나. [케이스 내용]
+
+나 기준으로는: [핵심 판단]
+
+어떻게 봐? 다른 각도 있어?" """
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500,
+        temperature=0.8
     )
     return response.choices[0].message.content
 

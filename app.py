@@ -155,7 +155,8 @@ def api_grow_start():
 
     user_role = 'owner' if is_owner else 'employee'
     conv_id = db.start_conversation(user_name, user_role, topic, full_section)
-    return jsonify({'ok': True, 'conversation_id': conv_id, 'section': full_section})
+    phase = chat_engine.get_current_phase()
+    return jsonify({'ok': True, 'conversation_id': conv_id, 'section': full_section, 'phase': phase})
 
 
 @app.route('/api/grow/message', methods=['POST'])
@@ -177,7 +178,22 @@ def api_grow_message():
         return jsonify({'ok': False, 'error': str(e)})
 
     msg_id = db.save_message(conv_id, 'assistant', brain_reply, '뇌')
-    return jsonify({'ok': True, 'reply': brain_reply, 'message_id': msg_id})
+
+    # 6메시지(3턴)마다 패턴 후보 자동 추출 → grow_candidates (별개 방)
+    conv_after = db.get_conversation_by_id(conv_id)
+    msg_count = conv_after.get('message_count', 0) if conv_after else 0
+    new_candidates = []
+    if msg_count > 0 and msg_count % 6 == 0:
+        try:
+            raw = chat_engine.extract_patterns_from_conversation(conv_id)
+            if raw:
+                db.save_grow_candidates(conv_id, raw)
+                new_candidates = raw
+        except Exception:
+            pass
+
+    return jsonify({'ok': True, 'reply': brain_reply, 'message_id': msg_id,
+                    'new_candidates': new_candidates})
 
 
 @app.route('/api/grow/new-case', methods=['POST'])
@@ -192,18 +208,45 @@ def api_grow_new_case():
 
 @app.route('/api/grow/new-opening', methods=['POST'])
 def api_grow_new_opening():
-    """새 케이스를 뇌 메시지로 생성하고 대화에 저장"""
+    """새 케이스를 뇌 메시지로 생성하고 대화에 저장 (단계별)"""
     data = request.json
     conv_id = int(data.get('conversation_id', 0))
     section = data.get('section', 'marketing')
+    phase = int(data.get('phase', 1))
     if not conv_id:
         return jsonify({'ok': False, 'error': '대화 ID 누락'})
     try:
-        opening = chat_engine.generate_opening_message(section)
+        if phase == 2:
+            opening = chat_engine.generate_phase2_opening(section)
+        else:
+            opening = chat_engine.generate_opening_message(section)
         db.save_message(conv_id, 'assistant', opening, '뇌')
         return jsonify({'ok': True, 'reply': opening})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/api/grow/candidates', methods=['GET'])
+def api_grow_candidates():
+    conv_id = request.args.get('conv_id', type=int)
+    candidates = db.get_grow_candidates(conv_id=conv_id, status='pending')
+    return jsonify({'ok': True, 'candidates': candidates})
+
+
+@app.route('/api/grow/promote/<int:cid>', methods=['POST'])
+def api_grow_promote(cid):
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    new_id = db.promote_grow_candidate(cid)
+    return jsonify({'ok': True, 'new_pattern_id': new_id})
+
+
+@app.route('/api/grow/reject/<int:cid>', methods=['POST'])
+def api_grow_reject(cid):
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    db.reject_grow_candidate(cid)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/grow/request-pattern', methods=['POST'])
