@@ -27,7 +27,7 @@ BRAIN_FRAMEWORK = """
 
 def _build_patterns_str():
     try:
-        patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+        patterns_data = db.get_patterns()
         patterns = patterns_data.get('patterns', [])
     except Exception:
         return ""
@@ -121,7 +121,7 @@ def build_system_prompt(section: str = 'marketing'):
 
 def get_brain_response(conversation_id: int, user_message: str, user_name: str,
                         section: str = 'marketing') -> str:
-    client = OpenAI(api_key=get_config()['openai_api_key'])
+    client = OpenAI(api_key=get_config().get('openai_api_key'))
 
     history = db.get_conversation_messages(conversation_id)
     system_prompt = build_system_prompt(section)
@@ -143,7 +143,7 @@ def get_brain_response(conversation_id: int, user_message: str, user_name: str,
 
 def generate_content_case(content_type: str) -> dict:
     """콘텐츠 탭용 클라이언트 케이스 자동 생성"""
-    client = OpenAI(api_key=get_config()['openai_api_key'])
+    client = OpenAI(api_key=get_config().get('openai_api_key'))
 
     type_label = "유튜브 숏폼 영상" if content_type == 'youtube' else "네이버 블로그 포스팅"
 
@@ -181,7 +181,7 @@ JSON으로 반환:
 
 def extract_patterns_from_conversation(conversation_id: int) -> list:
     """대화에서 패턴 후보 추출"""
-    client = OpenAI(api_key=get_config()['openai_api_key'])
+    client = OpenAI(api_key=get_config().get('openai_api_key'))
 
     messages_raw = db.get_conversation_messages(conversation_id)
     if not messages_raw:

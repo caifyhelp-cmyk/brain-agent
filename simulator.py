@@ -115,7 +115,7 @@ def generate_scenario():
 
 def evaluate_with_brain(scenario):
     client = get_client()
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
 
     patterns_str = "\n".join([
         f"[{p['id']}] ({p['category']}) {p['rule']}"
@@ -214,7 +214,7 @@ def auto_grow_from_gap(scenario, result):
         return []
 
     client = get_client()
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
     existing_rules = [p['rule'] for p in patterns_data['patterns']]
     existing_str = "\n".join(existing_rules)
 
@@ -326,7 +326,7 @@ def run_simulation():
 def generate_stress_scenario():
     """잘 안 쓰이는 패턴과 반복된 갭을 타겟팅하는 도전적 시나리오 생성"""
     client = get_client()
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
 
     fire_count = db.get_pattern_fire_counts(30)
     all_patterns = patterns_data['patterns']
@@ -378,7 +378,7 @@ JSON 형식으로만 출력:
 def evaluate_user_response(scenario, user_response):
     """유저 판단을 패턴 기준으로 평가 — 적용된 것, 빠진 것, 새 통찰, 확장 각도"""
     client = get_client()
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
 
     patterns_str = "\n".join([
         f"[{p['id']}] ({p['category']}) {p['rule']}"
@@ -439,7 +439,7 @@ JSON 형식으로만 출력:
 def synthesize_patterns():
     """누적 패턴 분석 — 중복 합성, 사각지대 발견, 상위 원칙 도출"""
     client = get_client()
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
 
     fire_count = db.get_pattern_fire_counts(50)
     patterns_with_stats = [
@@ -572,7 +572,7 @@ JSON 형식으로만 출력:
 
 def compare_judgment_to_outcome(scenario, agent_judgment, actual_outcome):
     client = get_client()
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
     existing_rules = [p['rule'] for p in patterns_data['patterns']]
     existing_str = "\n".join(existing_rules[:60])  # 토큰 절약, 대표 패턴만
 
@@ -755,14 +755,14 @@ def reprocess_existing_real_cases(full=True):
     full=False: 비교 분석만 재실행
     """
     conn = db.get_conn()
-    rows = conn.execute(
-        'SELECT * FROM real_case_simulations ORDER BY created_at ASC'
-    ).fetchall()
+    rows = db._fetchall(conn, 'SELECT * FROM real_case_simulations ORDER BY created_at ASC')
     conn.close()
 
     total = len(rows)
     updated = 0
     new_patterns_total = 0
+
+    ph = db._ph()
 
     for row in rows:
         try:
@@ -795,12 +795,12 @@ def reprocess_existing_real_cases(full=True):
             # DB 업데이트 (에이전트 판단도 같이)
             conn = db.get_conn()
             if full:
-                conn.execute(
-                    '''UPDATE real_case_simulations
-                       SET agent_judgment_json=?, comparison_json=?,
-                           match_score=?, aligned=?, new_patterns_added=?,
-                           patterns_fired=?, flagged=?
-                       WHERE id=?''',
+                db._exec(conn,
+                    f'''UPDATE real_case_simulations
+                       SET agent_judgment_json={ph}, comparison_json={ph},
+                           match_score={ph}, aligned={ph}, new_patterns_added={ph},
+                           patterns_fired={ph}, flagged={ph}
+                       WHERE id={ph}''',
                     (json.dumps(agent_judgment, ensure_ascii=False),
                      json.dumps(new_comparison, ensure_ascii=False),
                      match_score,
@@ -811,17 +811,16 @@ def reprocess_existing_real_cases(full=True):
                      row['id'])
                 )
             else:
-                conn.execute(
-                    '''UPDATE real_case_simulations
-                       SET comparison_json=?, match_score=?, aligned=?, new_patterns_added=?
-                       WHERE id=?''',
+                db._exec(conn,
+                    f'''UPDATE real_case_simulations
+                       SET comparison_json={ph}, match_score={ph}, aligned={ph}, new_patterns_added={ph}
+                       WHERE id={ph}''',
                     (json.dumps(new_comparison, ensure_ascii=False),
                      match_score,
                      1 if aligned else 0,
                      json.dumps(added_ids),
                      row['id'])
                 )
-            conn.commit()
             conn.close()
             updated += 1
             print(f"  재처리 완료 ({updated}/{total}): {row['company']}")
@@ -852,7 +851,7 @@ def generate_weekly_report(week_start):
         all_gaps.extend(s['gaps'])
     unique_gaps = list(dict.fromkeys(all_gaps))  # dedupe, preserve order
 
-    patterns_data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
+    patterns_data = db.get_patterns()
     pattern_map = {p['id']: p['rule'] for p in patterns_data['patterns']}
 
     report = {

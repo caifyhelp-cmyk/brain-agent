@@ -524,7 +524,8 @@ def api_chat_message():
     db.save_message(conv_id, 'user', user_message, user_name)
 
     try:
-        brain_reply = chat_engine.get_brain_response(conv_id, user_message, user_name)
+        section = conv.get('section', 'marketing') or 'marketing'
+        brain_reply = chat_engine.get_brain_response(conv_id, user_message, user_name, section)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 
