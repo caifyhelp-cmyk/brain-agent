@@ -155,16 +155,7 @@ def api_grow_start():
 
     user_role = 'owner' if is_owner else 'employee'
     conv_id = db.start_conversation(user_name, user_role, topic, full_section)
-
-    # 뇌가 먼저 케이스를 던진다
-    opening = None
-    try:
-        opening = chat_engine.generate_opening_message(full_section)
-        db.save_message(conv_id, 'assistant', opening, '뇌')
-    except Exception as e:
-        print(f"[opening message 오류] {e}")
-
-    return jsonify({'ok': True, 'conversation_id': conv_id, 'section': full_section, 'opening': opening})
+    return jsonify({'ok': True, 'conversation_id': conv_id, 'section': full_section})
 
 
 @app.route('/api/grow/message', methods=['POST'])

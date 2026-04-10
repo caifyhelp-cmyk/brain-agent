@@ -334,12 +334,26 @@ async function enterSession() {
   document.getElementById('entry_screen').classList.add('hidden');
   document.getElementById('chat_area').classList.remove('hidden');
 
-  // 뇌가 먼저 던진 케이스 표시
-  if (data.opening) {
-    appendMsg('assistant', data.opening, '뇌');
-  }
+  // 입장 직후 뇌가 케이스를 던짐 (비동기)
+  loadOpeningCase();
 
   document.getElementById('msg_input').focus();
+}
+
+async function loadOpeningCase() {
+  const typingEl = addTyping();
+  try {
+    const res = await fetch('/api/grow/new-opening', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({conversation_id: convId, section: fullSection()})
+    });
+    const data = await res.json();
+    typingEl.remove();
+    if (data.ok) appendMsg('assistant', data.reply, '뇌');
+  } catch(e) {
+    typingEl.remove();
+  }
 }
 
 function showEntryErr(msg) {
