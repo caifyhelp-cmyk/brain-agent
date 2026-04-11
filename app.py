@@ -25,6 +25,21 @@ app.secret_key = os.environ.get('SECRET_KEY', 'brain-agent-secret-2024')
 # gunicorn으로 실행 시에도 DB 초기화
 db.init_db()
 
+# 스케줄러 초기화 — gunicorn 포함 모든 실행 환경에서 동작
+def _init_scheduler():
+    sim_hour = get_config().get('simulation_hour', 9)
+    try:
+        scheduler.add_job(job_daily_simulations, 'cron', hour=sim_hour, minute=0, id='daily_sim')
+        scheduler.add_job(job_weekly_report, 'cron', day_of_week='mon', hour=8, minute=0, id='weekly_report')
+        scheduler.start()
+        import atexit
+        atexit.register(lambda: scheduler.shutdown(wait=False))
+        print(f"[스케줄러] 시작 완료 — 매일 {sim_hour}시 자동 시뮬레이션")
+    except Exception as e:
+        print(f"[스케줄러] 초기화 오류: {e}")
+
+_init_scheduler()
+
 
 def _owner_pin():
     return str(get_config()['owner_pin'])
@@ -32,6 +47,7 @@ scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 
 
 # ── 스케줄 작업 ──────────────────────────────────────────
+
 
 def job_daily_simulations():
     count = get_config().get('simulations_per_day', 5)
@@ -692,14 +708,6 @@ def _reschedule(sim_hour):
 # ── 메인 ─────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    db.init_db()
-
-    sim_hour = get_config().get('simulation_hour', 9)
-
-    scheduler.add_job(job_daily_simulations, 'cron', hour=sim_hour, minute=0, id='daily_sim')
-    scheduler.add_job(job_weekly_report, 'cron', day_of_week='mon', hour=8, minute=0, id='weekly_report')
-    scheduler.start()
-
     def open_browser():
         time.sleep(1.5)
         webbrowser.open('http://localhost:5000')

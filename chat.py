@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import random
 from pathlib import Path
 from openai import OpenAI
 import db
@@ -25,22 +26,64 @@ BRAIN_FRAMEWORK = """
 """
 
 
-def _build_patterns_str():
+# 시그니처 카테고리 — 작고 핵심적이라 전부 포함
+_SIGNATURE_CATS = {
+    '판 바꾸기', '타겟 착시 간파', '증명 우선', '수치 타겟화',
+    '레버리지 연결', '외부 우선 (Outside-In)', '감성적 포지셔닝', '체험 이벤트',
+}
+_LARGE_CAT_LIMIT = 25  # 대형 카테고리: 관련도 기준 최대 25개
+_SMALL_CAT_THRESHOLD = 30  # 이 이하면 전부 포함
+
+
+def _build_patterns_str(user_message: str = "") -> str:
     try:
         patterns_data = db.get_patterns()
         patterns = patterns_data.get('patterns', [])
     except Exception:
         return ""
 
-    cats = {}
+    if not patterns:
+        return ""
+
+    # 키워드 추출 (2자 이상 단어)
+    keywords = [w for w in user_message.replace(',', ' ').split() if len(w) >= 2] if user_message else []
+
+    # 카테고리별 분류
+    cats: dict = {}
     for p in patterns:
-        cats.setdefault(p['category'], []).append(p['rule'])
+        cats.setdefault(p['category'], []).append(p)
+
+    selected: list = []
+    for cat, cat_patterns in cats.items():
+        if cat in _SIGNATURE_CATS or len(cat_patterns) <= _SMALL_CAT_THRESHOLD:
+            # 시그니처/소형: 전부 포함
+            selected.extend(cat_patterns)
+        else:
+            # 대형 카테고리: 키워드 관련도 우선 + 나머지 랜덤
+            if keywords:
+                def relevance(p):
+                    rule_lower = p['rule'].lower()
+                    return sum(1 for kw in keywords if kw in rule_lower)
+                scored = sorted(cat_patterns, key=relevance, reverse=True)
+                top_n = _LARGE_CAT_LIMIT // 2
+                rest_n = _LARGE_CAT_LIMIT - top_n
+                top = scored[:top_n]
+                rest_pool = scored[top_n:]
+                rest = random.sample(rest_pool, min(rest_n, len(rest_pool)))
+                selected.extend(top + rest)
+            else:
+                selected.extend(random.sample(cat_patterns, min(_LARGE_CAT_LIMIT, len(cat_patterns))))
+
+    # 카테고리별 재조합 후 출력
+    by_cat: dict = {}
+    for p in selected:
+        by_cat.setdefault(p['category'], []).append(p['rule'])
 
     lines = []
-    for cat, rules in cats.items():
+    for cat, rules in by_cat.items():
         lines.append(f"[{cat}]")
-        for r in rules[:8]:  # 카테고리당 최대 8개
-            lines.append(f"  - {r[:120]}")
+        for r in rules:
+            lines.append(f"  - {r[:150]}")
     return "\n".join(lines)
 
 
@@ -126,8 +169,8 @@ PERSPECTIVE_EXPANSION = """
 """
 
 
-def build_system_prompt(section: str = 'marketing'):
-    patterns_str = _build_patterns_str()
+def build_system_prompt(section: str = 'marketing', user_message: str = ""):
+    patterns_str = _build_patterns_str(user_message)
     section_prompt = SECTION_PROMPTS.get(section, SECTION_PROMPTS['marketing'])
 
     return f"""너는 인하우스 마케터이자 전략가다.
@@ -159,7 +202,7 @@ def get_brain_response(conversation_id: int, user_message: str, user_name: str,
     client = OpenAI(api_key=get_config().get('openai_api_key'))
 
     history = db.get_conversation_messages(conversation_id)
-    system_prompt = build_system_prompt(section)
+    system_prompt = build_system_prompt(section, user_message)
 
     messages = [{"role": "system", "content": system_prompt}]
     for m in history:
@@ -265,7 +308,6 @@ def generate_opening_message(section: str) -> str:
 
 def _generate_content_opening(section: str, client) -> str:
     """콘텐츠 전용 케이스 — 성장 단계 기반으로 다양성 확보"""
-    import random
 
     content_type = "유튜브 숏폼 영상" if section == 'content_youtube' else "네이버 블로그"
 
