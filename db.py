@@ -203,14 +203,11 @@ def init_db():
 
 
 def _seed_patterns_from_json():
-    """patterns.json → patterns_db 최초 1회 마이그레이션"""
+    """patterns.json → patterns_db 최초 1회 마이그레이션 + 카테고리 동기화"""
     conn = get_conn()
     count_row = _fetchone(conn, 'SELECT COUNT(*) as cnt FROM patterns_db')
     count = count_row['cnt'] if count_row else 0
     conn.close()
-
-    if count > 0:
-        return  # 이미 데이터 있음
 
     try:
         data = json.loads(PATTERNS_PATH.read_text(encoding='utf-8'))
@@ -221,13 +218,31 @@ def _seed_patterns_from_json():
     if not patterns:
         return
 
-    conn = get_conn()
-    ph = _ph()
-    for p in patterns:
-        _exec(conn, f'INSERT INTO patterns_db (id, category, rule) VALUES ({ph}, {ph}, {ph})',
-              [p['id'], p['category'], p['rule']])
-    conn.close()
-    print(f"[DB] patterns.json → patterns_db 마이그레이션 완료 ({len(patterns)}개)")
+    if count == 0:
+        # 최초 시드
+        conn = get_conn()
+        ph = _ph()
+        for p in patterns:
+            _exec(conn, f'INSERT INTO patterns_db (id, category, rule) VALUES ({ph}, {ph}, {ph})',
+                  [p['id'], p['category'], p['rule']])
+        conn.close()
+        print(f"[DB] patterns.json → patterns_db 마이그레이션 완료 ({len(patterns)}개)")
+    else:
+        # 카테고리 변경 동기화 (rule은 DB 우선, category만 JSON 기준으로 갱신)
+        conn = get_conn()
+        ph = _ph()
+        json_map = {p['id']: p['category'] for p in patterns}
+        db_rows = _fetchall(conn, 'SELECT id, category FROM patterns_db')
+        updated = 0
+        for row in db_rows:
+            new_cat = json_map.get(row['id'])
+            if new_cat and new_cat != row['category']:
+                _exec(conn, f'UPDATE patterns_db SET category={ph} WHERE id={ph}',
+                      [new_cat, row['id']])
+                updated += 1
+        conn.close()
+        if updated:
+            print(f"[DB] 카테고리 동기화 완료 ({updated}개 업데이트)")
 
 
 # ── 패턴 CRUD ────────────────────────────────────────────

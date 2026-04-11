@@ -26,13 +26,14 @@ BRAIN_FRAMEWORK = """
 """
 
 
-# 시그니처 카테고리 — 작고 핵심적이라 전부 포함
+# 시그니처 카테고리 — 크기 무관하게 전부 포함
 _SIGNATURE_CATS = {
     '판 바꾸기', '타겟 착시 간파', '증명 우선', '수치 타겟화',
-    '레버리지 연결', '외부 우선 (Outside-In)', '감성적 포지셔닝', '체험 이벤트',
+    '레버리지 연결', '외부 우선 (Outside-In)', '위기 / 정체 대응',
+    '감성적 포지셔닝', '체험 이벤트',
 }
-_LARGE_CAT_LIMIT = 25  # 대형 카테고리: 관련도 기준 최대 25개
-_SMALL_CAT_THRESHOLD = 30  # 이 이하면 전부 포함
+_LARGE_CAT_LIMIT = 30  # 대형 카테고리: 관련도 기준 최대 30개
+_SMALL_CAT_THRESHOLD = 50  # 이 이하면 전부 포함
 
 
 def _build_patterns_str(user_message: str = "") -> str:
