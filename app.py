@@ -338,6 +338,113 @@ def api_delete_pattern(pattern_id):
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/judge', methods=['POST'])
+def api_judge():
+    """n8n CAiFY 워크플로우에서 호출하는 뇌 에이전트 판단 엔드포인트.
+    매핑5 노드 출력값을 그대로 받아 유튜브 쇼츠 방향을 판단한다.
+
+    Request JSON (caify_prompt 매핑 결과):
+        {
+            "brand_name": "한국인증센터",
+            "product_name": "ESG경영, ISO인증, 경영컨설팅",
+            "industry": "법인",
+            "goal": "문의·상담을 늘리고 싶다.",
+            "ages": "30대 / 40대 / 50대",
+            "product_strengths": "전문 인력이 직접 제공한다. / 처리 속도가 빠르다.",
+            "tones": "친절하게 쉽게 설명한다. / 전문가가 조언하는 느낌.",
+            "action_style": "관심이 생기도록 자연스럽게 유도한다.",
+            "extra_strength": "...",
+            "service_types": "온라인 서비스 / 전국 서비스",
+            "postLengthMode": "요약형",
+            "content_styles": "짧은 문장 위주 / 핵심 요약",
+            "expression": "가격·할인 언급",
+            "forbidden_phrases": ""
+        }
+
+    Response JSON:
+        {
+            "ok": true,
+            "judgment": "...",
+            "reason": "...",
+            "action": "...",
+            "raw": "..."
+        }
+    """
+    data = request.json or {}
+
+    brand_name       = data.get('brand_name', '').strip()
+    product_name     = data.get('product_name', '').strip()
+    industry         = data.get('industry', '').strip()
+    goal             = data.get('goal', '').strip()
+    ages             = data.get('ages', '').strip()
+    product_strengths = data.get('product_strengths', '').strip()
+    extra_strength   = data.get('extra_strength', '').strip()
+    tones            = data.get('tones', '').strip()
+    action_style     = data.get('action_style', '').strip()
+    service_types    = data.get('service_types', '').strip()
+    post_length      = data.get('postLengthMode', '').strip()
+    content_styles   = data.get('content_styles', '').strip()
+    expression       = data.get('expression', '').strip()
+    forbidden_phrases = data.get('forbidden_phrases', '').strip()
+
+    if not brand_name or not product_name:
+        return jsonify({'ok': False, 'error': 'brand_name과 product_name은 필수입니다'}), 400
+
+    strengths_combined = ' / '.join(filter(None, [product_strengths, extra_strength]))
+
+    situation = f"""
+[고객사 정보]
+브랜드명: {brand_name}
+상품/서비스: {product_name}
+업종: {industry}
+서비스 형태: {service_types}
+
+[마케팅 목표 & 타겟]
+최우선 목표: {goal}
+주요 타겟 연령대: {ages}
+
+[강점 & 홍보 포인트]
+강점: {strengths_combined}
+
+[콘텐츠 방향 설정]
+말하는 톤: {tones}
+행동 유도 방식: {action_style}
+콘텐츠 길이/스타일: {post_length} / {content_styles}
+피해야 할 표현: {expression}
+금지 문구: {forbidden_phrases}
+
+---
+위 고객사의 유튜브 쇼츠를 기획한다.
+이 고객사의 잠재고객이 쇼츠를 봤을 때 흥미를 느끼고 최종적으로 전환(문의/예약/구매)까지 이어지려면
+어떤 영상 구성이어야 하는가?
+첫 3초 훅, 핵심 메시지, 행동 유도 방식까지 판단하라.
+"""
+
+    try:
+        from agent import analyze
+        raw = analyze(situation)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+    lines = raw.strip().splitlines()
+    judgment = reason = action = ''
+    for line in lines:
+        if line.startswith('판단:'):
+            judgment = line.replace('판단:', '').strip()
+        elif line.startswith('이유:'):
+            reason = line.replace('이유:', '').strip()
+        elif line.startswith('실행:'):
+            action = line.replace('실행:', '').strip()
+
+    return jsonify({
+        'ok': True,
+        'judgment': judgment,
+        'reason': reason,
+        'action': action,
+        'raw': raw
+    })
+
+
 @app.route('/api/generate-report', methods=['POST'])
 def api_generate_report():
     week_start = request.json.get('week_start')
