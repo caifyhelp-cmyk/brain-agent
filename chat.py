@@ -26,17 +26,43 @@ BRAIN_FRAMEWORK = """
 """
 
 
-# 시그니처 카테고리 — 크기 무관하게 전부 포함
-_SIGNATURE_CATS = {
-    '판 바꾸기', '타겟 착시 간파', '증명 우선', '수치 타겟화',
-    '레버리지 연결', '외부 우선 (Outside-In)', '위기 / 정체 대응',
-    '감성적 포지셔닝', '체험 이벤트',
-}
-_LARGE_CAT_LIMIT = 30  # 대형 카테고리: 관련도 기준 최대 30개
-_SMALL_CAT_THRESHOLD = 50  # 이 이하면 전부 포함
+_EMBED_TOP_K = 250      # 시맨틱 서치로 가져올 패턴 수
+_FALLBACK_LIMIT = 30   # 임베딩 실패 시 카테고리당 최대 수
 
 
 def _build_patterns_str(user_message: str = "") -> str:
+    """
+    user_message가 있으면 벡터 임베딩 시맨틱 서치로 관련 패턴 top-250 반환.
+    임베딩 실패 시 기존 키워드 방식으로 폴백.
+    """
+    try:
+        if user_message:
+            import embeddings
+            selected = embeddings.search_patterns(user_message, top_k=_EMBED_TOP_K)
+            if selected:
+                by_cat: dict = {}
+                for p in selected:
+                    by_cat.setdefault(p['category'], []).append(p['rule'])
+                lines = []
+                for cat, rules in by_cat.items():
+                    lines.append(f"[{cat}]")
+                    for r in rules:
+                        lines.append(f"  - {r[:150]}")
+                return "\n".join(lines)
+    except Exception as e:
+        print(f"[임베딩 서치 실패, 폴백] {e}")
+
+    # 폴백: 키워드 기반 샘플링
+    return _build_patterns_str_fallback(user_message)
+
+
+def _build_patterns_str_fallback(user_message: str = "") -> str:
+    """기존 키워드 매칭 + 랜덤 샘플 방식 (임베딩 실패 시 폴백)"""
+    _SIGNATURE_CATS = {
+        '판 바꾸기', '타겟 착시 간파', '증명 우선', '수치 타겟화',
+        '레버리지 연결', '외부 우선 (Outside-In)', '위기 / 정체 대응',
+        '감성적 포지셔닝', '체험 이벤트',
+    }
     try:
         patterns_data = db.get_patterns()
         patterns = patterns_data.get('patterns', [])
@@ -46,36 +72,28 @@ def _build_patterns_str(user_message: str = "") -> str:
     if not patterns:
         return ""
 
-    # 키워드 추출 (2자 이상 단어)
     keywords = [w for w in user_message.replace(',', ' ').split() if len(w) >= 2] if user_message else []
 
-    # 카테고리별 분류
     cats: dict = {}
     for p in patterns:
         cats.setdefault(p['category'], []).append(p)
 
     selected: list = []
     for cat, cat_patterns in cats.items():
-        if cat in _SIGNATURE_CATS or len(cat_patterns) <= _SMALL_CAT_THRESHOLD:
-            # 시그니처/소형: 전부 포함
+        if cat in _SIGNATURE_CATS or len(cat_patterns) <= 50:
             selected.extend(cat_patterns)
         else:
-            # 대형 카테고리: 키워드 관련도 우선 + 나머지 랜덤
             if keywords:
                 def relevance(p):
                     rule_lower = p['rule'].lower()
                     return sum(1 for kw in keywords if kw in rule_lower)
                 scored = sorted(cat_patterns, key=relevance, reverse=True)
-                top_n = _LARGE_CAT_LIMIT // 2
-                rest_n = _LARGE_CAT_LIMIT - top_n
-                top = scored[:top_n]
-                rest_pool = scored[top_n:]
-                rest = random.sample(rest_pool, min(rest_n, len(rest_pool)))
+                top = scored[:_FALLBACK_LIMIT // 2]
+                rest = random.sample(scored[_FALLBACK_LIMIT // 2:], min(_FALLBACK_LIMIT // 2, len(scored) - _FALLBACK_LIMIT // 2))
                 selected.extend(top + rest)
             else:
-                selected.extend(random.sample(cat_patterns, min(_LARGE_CAT_LIMIT, len(cat_patterns))))
+                selected.extend(random.sample(cat_patterns, min(_FALLBACK_LIMIT, len(cat_patterns))))
 
-    # 카테고리별 재조합 후 출력
     by_cat: dict = {}
     for p in selected:
         by_cat.setdefault(p['category'], []).append(p['rule'])

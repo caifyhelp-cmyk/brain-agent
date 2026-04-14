@@ -25,6 +25,18 @@ app.secret_key = os.environ.get('SECRET_KEY', 'brain-agent-secret-2024')
 # gunicorn으로 실행 시에도 DB 초기화
 db.init_db()
 
+# 임베딩 초기화 — 백그라운드에서 실행 (앱 응답 지연 없음)
+def _init_embeddings_bg():
+    try:
+        import embeddings
+        count = embeddings.ensure_embeddings()
+        if count:
+            print(f"[임베딩] 신규 {count}개 생성 완료")
+    except Exception as e:
+        print(f"[임베딩] 초기화 실패 (폴백 모드 유지): {e}")
+
+threading.Thread(target=_init_embeddings_bg, daemon=True).start()
+
 # 스케줄러 초기화 — gunicorn 포함 모든 실행 환경에서 동작
 def _init_scheduler():
     sim_hour = get_config().get('simulation_hour', 9)
@@ -319,6 +331,8 @@ def api_add_pattern():
     new_id = db.add_pattern(category, rule, sim_id)
     if sim_id:
         db.dismiss_simulation(sim_id)
+    # 신규 패턴 임베딩 백그라운드 생성
+    threading.Thread(target=_init_embeddings_bg, daemon=True).start()
     return jsonify({'status': 'ok', 'new_id': new_id})
 
 
@@ -329,13 +343,49 @@ def api_edit_pattern(pattern_id):
     if not new_rule:
         return jsonify({'status': 'error', 'message': '패턴 내용을 입력하세요'})
     db.edit_pattern(pattern_id, new_rule)
+    try:
+        import embeddings
+        embeddings.invalidate_pattern(pattern_id)
+        threading.Thread(target=_init_embeddings_bg, daemon=True).start()
+    except Exception:
+        pass
     return jsonify({'status': 'ok'})
 
 
 @app.route('/api/delete-pattern/<int:pattern_id>', methods=['POST'])
 def api_delete_pattern(pattern_id):
     db.delete_pattern(pattern_id)
+    try:
+        import embeddings
+        embeddings.invalidate_pattern(pattern_id)
+    except Exception:
+        pass
     return jsonify({'status': 'ok'})
+
+
+@app.route('/api/admin/rebuild-embeddings', methods=['POST'])
+def api_rebuild_embeddings():
+    """관리자 전용 — 전체 임베딩 재생성"""
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    try:
+        import embeddings
+        count = embeddings.ensure_embeddings()
+        stats = embeddings.get_embedding_stats()
+        return jsonify({'ok': True, 'generated': count, 'stats': stats})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/api/admin/embedding-stats', methods=['GET'])
+def api_embedding_stats():
+    """임베딩 현황 조회"""
+    try:
+        import embeddings
+        stats = embeddings.get_embedding_stats()
+        return jsonify({'ok': True, **stats})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
 
 
 @app.route('/api/judge', methods=['POST'])

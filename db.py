@@ -191,6 +191,12 @@ def init_db():
             status TEXT DEFAULT 'pending',
             promoted_pattern_id INTEGER
         )''',
+        f'''CREATE TABLE IF NOT EXISTS pattern_embeddings (
+            pattern_id INTEGER PRIMARY KEY,
+            embedding TEXT NOT NULL,
+            model TEXT DEFAULT 'text-embedding-3-small',
+            created_at TEXT DEFAULT ({now})
+        )''',
     ]
 
     for sql in tables:
