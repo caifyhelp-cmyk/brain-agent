@@ -7,7 +7,9 @@ import webbrowser
 from datetime import date, timedelta
 from pathlib import Path
 
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session
+import queue
+import uuid
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, Response, stream_with_context
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import db
@@ -851,6 +853,127 @@ def api_review_dismiss(req_id):
         return jsonify({'ok': False, 'error': '권한 없음'})
     db.dismiss_pattern_request(req_id)
     return jsonify({'ok': True})
+
+
+# ── MCP 서버 (Claude.ai 웹 연동) ────────────────────────
+
+_mcp_sessions: dict = {}  # {session_id: Queue}
+
+_MCP_TOOLS = [
+    {
+        'name': 'search_brain_patterns',
+        'description': (
+            '마케팅 상황과 관련된 뇌 에이전트의 판단 패턴을 검색합니다. '
+            '1,180개 패턴 중 입력한 상황과 가장 유사한 패턴 50개를 반환합니다. '
+            '전략 수립, 채널 판단, 타겟 설정 등 마케팅 의사결정에 활용하세요.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'query': {'type': 'string', 'description': '검색할 마케팅 상황이나 고민'}
+            },
+            'required': ['query']
+        }
+    },
+    {
+        'name': 'get_brain_judgment',
+        'description': (
+            '특정 상황에 대한 뇌 에이전트의 직접 판단을 받습니다. '
+            '유튜브 쇼츠 콘텐츠 방향, 마케팅 전략, 포지셔닝 판단에 특화되어 있습니다. '
+            '공간명, 업종, 강점, 타겟, 목표를 포함해서 요청하면 더 구체적인 판단이 나옵니다.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'situation': {'type': 'string', 'description': '판단받을 상황 설명 (업종, 강점, 타겟, 목표 포함 권장)'}
+            },
+            'required': ['situation']
+        }
+    }
+]
+
+
+def _mcp_handle(method, params, msg_id):
+    if method == 'initialize':
+        return {
+            'jsonrpc': '2.0', 'id': msg_id,
+            'result': {
+                'protocolVersion': '2024-11-05',
+                'capabilities': {'tools': {}},
+                'serverInfo': {'name': '뇌-에이전트', 'version': '1.0'}
+            }
+        }
+    elif method in ('notifications/initialized', 'ping'):
+        return None
+    elif method == 'tools/list':
+        return {'jsonrpc': '2.0', 'id': msg_id, 'result': {'tools': _MCP_TOOLS}}
+    elif method == 'tools/call':
+        tool = params.get('name')
+        args = params.get('arguments', {})
+        try:
+            if tool == 'search_brain_patterns':
+                import embeddings
+                patterns = embeddings.search_patterns(args['query'], top_k=50)
+                by_cat: dict = {}
+                for p in patterns:
+                    by_cat.setdefault(p['category'], []).append(p['rule'])
+                lines = []
+                for cat, rules in by_cat.items():
+                    lines.append(f"[{cat}]")
+                    for r in rules:
+                        lines.append(f"  - {r}")
+                text = "\n".join(lines) if lines else "관련 패턴 없음"
+            elif tool == 'get_brain_judgment':
+                from agent import analyze
+                text = analyze(args['situation'])
+            else:
+                text = f"알 수 없는 도구: {tool}"
+            return {'jsonrpc': '2.0', 'id': msg_id,
+                    'result': {'content': [{'type': 'text', 'text': text}]}}
+        except Exception as e:
+            return {'jsonrpc': '2.0', 'id': msg_id,
+                    'error': {'code': -32000, 'message': str(e)}}
+    return {'jsonrpc': '2.0', 'id': msg_id, 'result': {}}
+
+
+@app.route('/mcp/sse')
+def mcp_sse():
+    session_id = str(uuid.uuid4())
+    q = queue.Queue()
+    _mcp_sessions[session_id] = q
+
+    def generate():
+        msg_url = f"/mcp/message?session_id={session_id}"
+        yield f"event: endpoint\ndata: {json.dumps(msg_url)}\n\n"
+        try:
+            while True:
+                try:
+                    item = q.get(timeout=25)
+                    if item is None:
+                        break
+                    yield f"event: message\ndata: {json.dumps(item, ensure_ascii=False)}\n\n"
+                except queue.Empty:
+                    yield ": keepalive\n\n"
+        finally:
+            _mcp_sessions.pop(session_id, None)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
+    )
+
+
+@app.route('/mcp/message', methods=['POST'])
+def mcp_message():
+    session_id = request.args.get('session_id', '')
+    if session_id not in _mcp_sessions:
+        return jsonify({'error': 'session not found'}), 400
+    msg = request.json or {}
+    result = _mcp_handle(msg.get('method', ''), msg.get('params', {}), msg.get('id'))
+    if result is not None:
+        _mcp_sessions[session_id].put(result)
+    return '', 202
 
 
 # ── 유틸 ─────────────────────────────────────────────────
