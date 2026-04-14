@@ -474,26 +474,18 @@ def api_judge():
 
     try:
         from agent import analyze
-        raw = analyze(situation)
+        result = analyze(situation)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
-    lines = raw.strip().splitlines()
-    judgment = reason = action = ''
-    for line in lines:
-        if line.startswith('판단:'):
-            judgment = line.replace('판단:', '').strip()
-        elif line.startswith('이유:'):
-            reason = line.replace('이유:', '').strip()
-        elif line.startswith('실행:'):
-            action = line.replace('실행:', '').strip()
-
     return jsonify({
         'ok': True,
-        'judgment': judgment,
-        'reason': reason,
-        'action': action,
-        'raw': raw
+        'judgment':         result.get('judgment', ''),
+        'reason':           result.get('reason', ''),
+        'action':           result.get('action', ''),
+        'creative_approach': result.get('creative_approach', 'light_twist'),
+        'approach_reason':  result.get('approach_reason', ''),
+        'raw':              result.get('raw', '')
     })
 
 

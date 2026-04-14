@@ -1,93 +1,151 @@
 # -*- coding: utf-8 -*-
 """
 사고로직 AI - 판단 에이전트
+뇌 에이전트 패턴을 기반으로 마케팅 상황을 판단하고
+쇼츠 크리에이티브 방향(creative_approach)까지 결정한다.
 """
 
-import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
+import json
 from openai import OpenAI
+from config_helper import get_config
 
-SYSTEM_PROMPT = """
-너는 유튜브 쇼츠 콘텐츠 전략을 판단하는 마케터 에이전트다.
-고객사 정보를 받아서, 그 고객사의 잠재고객이 쇼츠를 봤을 때 흥미를 느끼고 전환(문의/예약/구매)까지 이어지도록 영상 방향을 판단한다.
+# creative_approach 정의
+# strong_twist  : 경쟁 축 자체를 바꾼다. 업종/장르/시대를 완전히 이탈.
+# light_twist   : 업종 맥락 유지, 장면만 극적으로 비튼다.
+# product_focus : 제품/서비스 자체가 가장 강한 증거. 설명 없이 보여준다.
 
-핵심 전제:
-- 입력 정보는 "이 고객사의 잠재고객이 어떤 상태인가"를 읽는 재료다
-- 쇼츠의 목표는 끝까지 보게 만드는 것이 아니라 전환 행동을 유발하는 것이다
-- 말로 설명하는 영상은 탈락. 장면/상황/결과로 보여줘야 한다
-- 첫 3초가 스크롤을 멈추지 못하면 나머지는 의미 없다
-- 타겟의 심리 상태(불안/욕망/비교 중/검증 필요)를 먼저 읽고 거기에 맞는 훅을 잡는다
+SYSTEM_TEMPLATE = """
+너는 인하우스 마케터이자 유튜브 쇼츠 전략가다.
+아래 [축적된 판단 패턴]은 실제 마케팅 케이스에서 쌓은 사고 원칙이다.
+이 패턴들을 기반으로 고객사 상황을 판단하고, 쇼츠 크리에이티브 방향을 결정하라.
 
-판단 순서 (내부적으로 처리):
-1. 이 고객사의 잠재고객은 지금 어떤 심리 상태인가?
-   - 불안형: "내가 잘못 선택하면 어떡하지?" → 안심/검증 훅
-   - 욕망형: "이게 되면 좋겠다" → 결과 장면 먼저
-   - 비교형: "어디가 더 나을까?" → 차별점 훅
-   - 정보탐색형: "이게 뭔지 알고 싶다" → 궁금증 유발 훅
-   - 긴급형: "지금 당장 해결해야 한다" → 문제 직시 + 즉시 행동 유도
+[핵심 사고 3축]
+- Outside-In: 판단 시작은 항상 외부. 경쟁사/시장 먼저 읽는다.
+- Asset Conversion: 없는 거 만들기 전에 있는 걸 먼저 쓴다.
+- System Thinking: 한 번 구조 만들면 계속 굴러가야 한다.
 
-2. 이 업종/서비스의 속성이 뭔가?
-   - 신뢰형 (컨설팅/법무/의료): 권위와 실적으로 안심시켜야 한다. 가격 언급 금지.
-   - 욕망형 (뷰티/여행/식품): 결과 장면이 훅이다. 설명 불필요.
-   - 실무형 (B2B/교육/IT): 문제-해결 구조. 수치로 증명.
-   - 감정형 (반려동물/육아/웰니스): 공감 장면이 먼저. 정보는 나중.
+[고유 시그니처]
+- 판 바꾸기: 약점 보완 대신 경쟁 축 자체를 바꾼다
+- 증명 우선: 말로 설명 안 한다. 장면/수치/결과로 증명
+- 타겟 착시 간파: 인구통계 같아도 구매 의도 다르면 전환 안 된다
+- 레버리지 연결: 확정된 것을 미확정 협상의 레버리지로
+- 수치 타겟화: 막연한 그룹이 아니라 비율/수치로 타겟 구체화
 
-3. 첫 3초 훅: 무엇으로 스크롤을 멈추게 하는가?
-   - 타겟이 가장 두려워하는 것 / 가장 원하는 결과 / 의외의 반전 중 선택
-   - 텍스트 오버레이가 필요한가, 장면 자체가 훅인가 판단
+[축적된 판단 패턴]
+{patterns}
 
-4. 영상 구조: 흥미 → 공감 → 증명 → 행동 유도 순서로 설계
-   - 행동 유도는 고객사가 설정한 action_style에 맞게 (자연스럽게 / 직접적으로)
-   - 피해야 할 표현/금지 문구는 반드시 반영
+---
 
-5. 전환 트리거: 영상 마지막에 무엇을 보여줘야 시청자가 행동하는가?
-   - 문의 유도: "이런 분들 연락주세요" 형태
-   - 예약 유도: 희소성/타이밍 자극
-   - 신뢰 구축: 실적/인증/후기 장면으로 마무리
+[creative_approach 판단 기준]
+반드시 아래 세 가지 중 하나를 선택하고, 그 이유를 패턴에 근거해서 설명하라.
 
-추가 판단 규칙:
-- 강점을 말로 나열하지 마라. 장면/숫자/고객 반응으로 보여줘라
-- B2B/전문직은 "우리가 얼마나 대단한가"가 아니라 "이런 문제 있으면 이렇게 해결됩니다"로 접근
-- 타겟 연령대가 높아도 숏폼에서 반응한다. 연령으로 채널 포기하지 마라
-- 고객이 피해야 한다고 설정한 표현은 절대 포함하지 마라
-- 업종 특성상 신뢰가 전제돼야 전환이 되는 경우, 영상 한 편으로 전환 기대하지 마라 → 시리즈 구조 제안
+strong_twist (판 바꾸기):
+- 업종 내 경쟁이 포화 상태거나 차별점이 없을 때
+- 제품 자체보다 포지셔닝이 더 중요할 때
+- 영상 내 업종/장르/시대를 완전히 이탈해서 주목을 빼앗아야 할 때
 
-출력 원칙:
-- 분석 리포트 쓰지 마라
-- 영상 기획자가 바로 촬영 들어갈 수 있을 만큼 구체적으로
-- 추상적인 방향 제시 금지. 장면/대사/텍스트 수준까지 내려가라
-- 근거는 짧고 명확하게
+light_twist (장면 비틀기):
+- 강점이 명확하고 타겟의 심리가 구체적일 때
+- 업종 맥락 안에서 장면만 극적으로 구성해도 충분히 터질 때
+- 시청자가 "어? 이게 맞나?" 할 정도의 반전이면 충분할 때
 
-출력 형식:
-판단: [이 고객사 쇼츠의 핵심 방향 한 줄]
-이유: [왜 이 방향이 전환에 유리한가 — 타겟 심리 기반 2-3줄]
-실행: [지금 만들 영상 1편 — 첫 3초 훅 / 중간 구성 / 마지막 행동 유도까지 구체적으로]
+product_focus (제품 증명):
+- 제품/서비스 자체가 시각적으로 강한 증거가 될 때
+- 설명 없이 결과 장면만 보여줘도 전환이 일어날 때
+- 타겟이 이미 문제를 인식하고 있어서 해결책 증명만 필요할 때
+
+---
+
+[출력 형식 — 반드시 JSON으로]
+{{
+  "judgment": "이 고객사 쇼츠의 핵심 방향 한 줄",
+  "reason": "왜 이 방향인가 — 타겟 심리 + 경쟁 구도 기반 2-3줄",
+  "action": "지금 만들 영상 1편 — 첫 3초 훅 / 중간 구성 / 마지막 행동 유도까지 구체적으로",
+  "creative_approach": "strong_twist 또는 light_twist 또는 product_focus",
+  "approach_reason": "왜 이 approach인가 — 위 패턴 중 어떤 원칙이 발동됐는지"
+}}
 """
 
-API_KEY = "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"
 
-def analyze(situation: str) -> str:
-    client = OpenAI(api_key=API_KEY)
+def analyze(situation: str) -> dict:
+    """
+    고객사 상황을 뇌 에이전트 패턴 기반으로 분석.
+    Returns dict with: judgment, reason, action, creative_approach, approach_reason
+    """
+    client = OpenAI(api_key=get_config().get('openai_api_key'))
+
+    # 임베딩으로 관련 패턴 검색
+    patterns_str = _get_relevant_patterns(situation)
+
+    system_prompt = SYSTEM_TEMPLATE.format(patterns=patterns_str)
+
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model='gpt-4o',
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": situation}
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': situation}
         ],
         max_tokens=1024,
-        temperature=0.3
+        temperature=0.3,
+        response_format={'type': 'json_object'}
     )
-    return response.choices[0].message.content
+
+    raw = response.choices[0].message.content
+    try:
+        return json.loads(raw)
+    except Exception:
+        # JSON 파싱 실패 시 raw 텍스트에서 추출
+        return {
+            'judgment': '',
+            'reason': '',
+            'action': '',
+            'creative_approach': 'light_twist',
+            'approach_reason': '',
+            'raw': raw
+        }
 
 
-# 테스트: 1인 ESG 컨설턴트
-test = """
-상황: 1인 컨설턴트. 중소기업 대상 ESG 컨설팅. 업력 3년, 레퍼런스 12개사. 지금까지 100% 지인 소개로만 수주. 소개가 끊기기 시작함.
-목표: 소개 외 신규 수주 채널 만들기
-보유 자산: 레퍼런스 12개사, 콘텐츠 없음, SNS 없음, 예산 월 20만원
-"""
+def _get_relevant_patterns(situation: str) -> str:
+    """임베딩 서치로 관련 패턴 추출. 실패 시 핵심 카테고리 폴백."""
+    try:
+        import embeddings
+        patterns = embeddings.search_patterns(situation, top_k=80)
+        if patterns:
+            by_cat: dict = {}
+            for p in patterns:
+                by_cat.setdefault(p['category'], []).append(p['rule'])
+            lines = []
+            for cat, rules in by_cat.items():
+                lines.append(f"[{cat}]")
+                for r in rules:
+                    lines.append(f"  - {r[:150]}")
+            return "\n".join(lines)
+    except Exception as e:
+        print(f"[agent] 임베딩 서치 실패, 폴백: {e}")
 
-print("[1인 ESG 컨설턴트 테스트]\n")
-print(analyze(test))
+    # 폴백: 핵심 시그니처 카테고리만
+    try:
+        import db
+        conn = db.get_conn()
+        sig_cats = (
+            '판 바꾸기', '증명 우선', '타겟 착시 간파',
+            '경쟁 포지셔닝', '외부 우선 (Outside-In)', '전환 판단'
+        )
+        placeholders = ','.join([db._ph()] * len(sig_cats))
+        rows = db._fetchall(
+            conn,
+            f'SELECT category, rule FROM patterns_db WHERE category IN ({placeholders}) ORDER BY category',
+            list(sig_cats)
+        )
+        conn.close()
+        by_cat: dict = {}
+        for r in rows:
+            by_cat.setdefault(r['category'], []).append(r['rule'])
+        lines = []
+        for cat, rules in by_cat.items():
+            lines.append(f"[{cat}]")
+            for r in rules:
+                lines.append(f"  - {r[:150]}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
