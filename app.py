@@ -936,6 +936,11 @@ def _mcp_handle(method, params, msg_id):
     return {'jsonrpc': '2.0', 'id': msg_id, 'result': {}}
 
 
+@app.route('/robots.txt')
+def robots_txt():
+    return Response('User-agent: *\nAllow: /\n', mimetype='text/plain')
+
+
 @app.route('/mcp/sse')
 def mcp_sse():
     session_id = str(uuid.uuid4())
