@@ -40,6 +40,13 @@ def _init_embeddings_bg():
 
 threading.Thread(target=_init_embeddings_bg, daemon=True).start()
 
+scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+
+
+def _owner_pin():
+    return str(get_config()['owner_pin'])
+
+
 # 스케줄러 초기화 — gunicorn 포함 모든 실행 환경에서 동작
 def _init_scheduler():
     sim_hour = get_config().get('simulation_hour', 9)
@@ -51,17 +58,9 @@ def _init_scheduler():
         scheduler.start()
         import atexit
         atexit.register(lambda: scheduler.shutdown(wait=False))
-        print(f"[스케줄러] 시작 완료 — 매일 {sim_hour}시 마케팅 / {video_hour}시 30분 영상 시뮬레이션")
+        print(f"[스케줄러] 시작 완료 - 매일 {sim_hour}시 마케팅 / {video_hour}시 30분 영상 시뮬레이션")
     except Exception as e:
         print(f"[스케줄러] 초기화 오류: {e}")
-
-_init_scheduler()
-
-
-def _owner_pin():
-    return str(get_config()['owner_pin'])
-scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-
 
 # ── 스케줄 작업 ──────────────────────────────────────────
 
@@ -96,6 +95,8 @@ def job_weekly_report():
         print("  리포트 생성 완료")
     except Exception as e:
         print(f"  오류: {e}")
+
+_init_scheduler()
 
 
 # ── 라우트 ───────────────────────────────────────────────
