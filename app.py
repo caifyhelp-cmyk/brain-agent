@@ -928,6 +928,23 @@ def _mcp_handle(method, params, msg_id):
     return {'jsonrpc': '2.0', 'id': msg_id, 'result': {}}
 
 
+@app.route('/video-cases')
+def video_cases():
+    if not session.get('is_owner'):
+        return redirect('/')
+    cases = db.get_approved_video_cases()
+    counts = db.get_video_case_counts()
+    return render_template('video_cases.html', cases=cases, counts=counts)
+
+
+@app.route('/api/video-cases/delete/<int:case_id>', methods=['POST'])
+def api_delete_video_case(case_id):
+    if not session.get('is_owner'):
+        return jsonify({'error': 'unauthorized'}), 403
+    db.reject_video_case(case_id)
+    return jsonify({'status': 'ok'})
+
+
 @app.route('/robots.txt')
 def robots_txt():
     return Response('User-agent: *\nAllow: /\n', mimetype='text/plain')

@@ -407,10 +407,10 @@ if __name__ == '__main__':
         safe_feedback = feedback.encode('utf-8', errors='ignore').decode('utf-8')
         result = extract_video_case_from_feedback(safe_feedback, safe_brand)
         if 'error' not in result:
-            print(f"\n케이스 추출 완료 (pending #{result.get('id')})")
+            print(f"\n케이스 저장 완료 (#{result.get('id')})")
             print(f"업종: {result.get('industry')}")
             print(f"뻔한방향: {result.get('boring_direction')}")
             print(f"기획: {result.get('plan')}")
-            print("\n→ 웹에서 검토 후 승인하면 다음 기획에 반영됩니다.")
+            print("\n→ 다음 기획부터 바로 반영됩니다.")
         else:
             print(f"추출 실패: {result['error']}")

@@ -372,7 +372,7 @@ JSON으로 반환:
             boring_direction=result.get('boring_direction', ''),
             plan=result.get('plan', ''),
             source='extracted',
-            status='pending'
+            status='approved'
         )
         result['id'] = case_id
         return result

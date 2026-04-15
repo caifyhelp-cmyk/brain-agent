@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 영상 기획 케이스</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+
+  main { padding: 32px; max-width: 960px; margin: 0 auto; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  h1 { font-size: 20px; font-weight: 700; color: #fff; }
+  .count { font-size: 13px; color: #888; }
+
+  .case-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .case-item { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; display: flex; gap: 16px; align-items: flex-start; }
+  .case-item.deleted { opacity: 0.3; pointer-events: none; }
+
+  .case-num { font-size: 12px; color: #555; font-weight: 600; min-width: 28px; padding-top: 2px; }
+
+  .case-body { flex: 1; }
+  .case-industry { font-size: 12px; color: #6c63ff; font-weight: 600; margin-bottom: 6px; }
+  .case-boring { font-size: 12px; color: #666; margin-bottom: 8px; }
+  .case-boring span { color: #888; }
+  .case-plan { font-size: 14px; color: #ddd; line-height: 1.6; }
+
+  .case-meta { font-size: 11px; color: #444; margin-top: 8px; }
+
+  .btn-delete { background: none; border: 1px solid #3a2a2a; color: #884444; border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .btn-delete:hover { background: #ff6b6b22; border-color: #ff6b6b44; color: #ff6b6b; }
+
+  .empty { text-align: center; padding: 60px; color: #555; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/patterns">패턴</a>
+  <a href="/grow">성장</a>
+  <a href="/video-cases" class="active">영상 케이스</a>
+  <a href="/review">검토</a>
+</nav>
+
+<main>
+  <div class="header">
+    <h1>영상 기획 케이스</h1>
+    <span class="count">총 {{ counts.approved }}개</span>
+  </div>
+
+  {% if cases %}
+  <div class="case-list">
+    {% for c in cases %}
+    <div class="case-item" id="case-{{ c.id }}">
+      <div class="case-num">#{{ c.id }}</div>
+      <div class="case-body">
+        <div class="case-industry">{{ c.industry }}</div>
+        <div class="case-boring"><span>뻔한방향:</span> {{ c.boring_direction }}</div>
+        <div class="case-plan">{{ c.plan }}</div>
+        <div class="case-meta">{{ c.source }} · {{ c.created_at[:10] if c.created_at else '' }}</div>
+      </div>
+      <button class="btn-delete" onclick="deleteCase({{ c.id }})">삭제</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">케이스가 없어요.</div>
+  {% endif %}
+</main>
+
+<script>
+async function deleteCase(id) {
+  if (!confirm('이 케이스를 삭제할까요?')) return;
+  const res = await fetch(`/api/video-cases/delete/${id}`, { method: 'POST' });
+  if (res.ok) {
+    document.getElementById(`case-${id}`).classList.add('deleted');
+  }
+}
+</script>
+</body>
+</html>
