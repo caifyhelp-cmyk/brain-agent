@@ -504,6 +504,206 @@ def api_judge():
     })
 
 
+@app.route('/api/blog_judge', methods=['POST'])
+def api_blog_judge():
+    """블로그 콘텐츠 전략 판단 엔드포인트 (4-step).
+    매핑5 노드 출력값을 받아 키워드→전략→제목/H2를 결정한다.
+    업종 불문, 오프라인이면 지역명 자동 반영.
+    """
+    import json as _json
+
+    data = request.json or {}
+
+    brand_name        = data.get('brand_name', '').strip()
+    product_name      = data.get('product_name', '').strip()
+    industry          = data.get('industry', '').strip()
+    goal              = data.get('goal', '').strip()
+    ages              = data.get('ages', '').strip()
+    product_strengths = data.get('product_strengths', '').strip()
+    extra_strength    = data.get('extra_strength', '').strip()
+    tones             = data.get('tones', '').strip()
+    action_style      = data.get('action_style', '').strip()
+    service_types     = data.get('service_types', '').strip()
+    expression        = data.get('expression', '').strip()
+    forbidden_phrases = data.get('forbidden_phrases', '').strip()
+    address           = data.get('address', '').strip()
+
+    if not brand_name or not product_name:
+        return jsonify({'ok': False, 'error': 'brand_name과 product_name은 필수입니다'}), 400
+
+    is_offline = '오프라인' in service_types
+    location_hint = f'오프라인 매장. 지역: {address}' if (is_offline and address) else '온라인/전국 서비스 (지역명 불필요)'
+
+    situation = f"""
+브랜드: {brand_name}
+상품/서비스: {product_name}
+업종: {industry}
+서비스: {service_types} / {location_hint}
+목표: {goal}
+타겟 연령: {ages}
+기본 강점: {product_strengths}
+추가 강점(고유): {extra_strength}
+톤: {tones}
+유도 방식: {action_style}
+피해야 할 표현: {expression}
+금지 문구: {forbidden_phrases}
+"""
+
+    try:
+        from agent import _get_relevant_patterns
+        from openai import OpenAI
+        from config_helper import get_config
+
+        patterns_str = _get_relevant_patterns(situation)
+        client = OpenAI(api_key=get_config().get('openai_api_key'))
+
+        # STEP 1: 키워드 결정
+        r1 = client.chat.completions.create(
+            model='gpt-4o',
+            messages=[{'role': 'user', 'content': f"""
+네이버 SEO 전문 마케터다. 블로그 포스팅 핵심 키워드를 결정하라.
+
+[브랜드 정보]
+{situation}
+
+[원칙]
+1. 실제 네이버 검색량 있는 롱테일 (업종+상황/절차/기간/비용/후기/차이 조합)
+2. 전환 의도 높은 것 우선
+3. 오프라인 매장 → 지역명+업종+서비스 조합 필수
+4. 전국/온라인 → 지역명 제외, 상황/절차/기간 조합
+
+후보 3개 뽑고 최종 1개 선택.
+JSON: {{"candidates":["키워드1","키워드2","키워드3"],"selected":"최종키워드","reason":"이유"}}
+"""}],
+            max_tokens=300, temperature=0.2,
+            response_format={'type': 'json_object'}
+        )
+        kw = _json.loads(r1.choices[0].message.content)
+        keyword = kw.get('selected', '')
+
+        # STEP 2: 뇌 에이전트 전략 (extra_strength 우선)
+        r2 = client.chat.completions.create(
+            model='gpt-4o',
+            messages=[{'role': 'user', 'content': f"""
+인하우스 마케터다. 아래 패턴 기반으로 블로그 전략을 결정한다.
+
+[핵심 3축]
+- Outside-In: 경쟁사가 반복하는 방향 소거. 경쟁사 안 가는 곳 + 이 브랜드 강점 교차 지점
+- Asset Conversion: 강점 중 경쟁사가 말하기 가장 어려운 것 하나만 앞에 세운다
+- System Thinking: 검색 → 읽기 → 전환까지 끊기지 않는 구조
+
+[축적된 판단 패턴]
+{patterns_str}
+
+[브랜드 정보]
+{situation}
+
+[선택된 키워드]
+{keyword}
+
+[lead_strength 판단 규칙 — 순서 엄수]
+1순위: 추가 강점(고유) 항목에서 먼저 찾는다. 경쟁사가 말하기 가장 어렵다.
+2순위: 추가 강점에서 없을 때만 기본 강점으로 내려간다.
+기준: 경쟁사 10곳 중 이걸 내세우는 곳이 적을수록 선택.
+
+[타겟 상태 — 1개만 선택]
+A. 고통 — 지금 막혀있다
+B. 욕망 — 더 좋아지고 싶다
+C. 비교중 — 기준 필요
+D. 확신부족 — 믿음 없다
+
+[훅 타입 — 반드시 3개 중 1개만]
+역전형 / 공감형 / 욕망형
+
+JSON: {{"target_state":"A/B/C/D","target_state_reason":"맥락","lead_strength":"강점 하나","lead_from":"extra 또는 basic","elimination":"경쟁사 반복 방향","hook_type":"역전형 또는 공감형 또는 욕망형"}}
+"""}],
+            max_tokens=400, temperature=0.2,
+            response_format={'type': 'json_object'}
+        )
+        strategy = _json.loads(r2.choices[0].message.content)
+
+        # STEP 3: 제목 + H2
+        r3 = client.chat.completions.create(
+            model='gpt-4o',
+            messages=[{'role': 'user', 'content': f"""
+네이버 블로그 제목과 H2를 만드는 마케터다.
+
+[키워드]
+{keyword}
+
+[전략]
+타겟: {strategy.get('target_state')} — {strategy.get('target_state_reason')}
+앞세울 강점: {strategy.get('lead_strength')}
+소거 방향: {strategy.get('elimination')}
+훅 타입: {strategy.get('hook_type')}
+
+[지역]
+{location_hint}
+
+[제목 규칙]
+- 키워드가 앞 15자 안에 포함
+- 오프라인이면 지역명 자연스럽게 포함
+- 금지: ~하는 법, 총정리, 완벽 가이드, ~인가?, ~필수, ~중요성, ~이란, ~왜 필요
+- 권장: ~했습니다, ~했어요, ~할 때, ~라면, ~차이, ~고르다, ~걸렸어요, ~받았어요
+
+[H2 규칙]
+- 키워드 검색 의도 따르되 타겟 상태+전략 구조로
+- 금지: ~이란, ~중요성, ~왜 필요, ~인가, ~정의, ~총정리, 전문가의 조언
+- 권장: 상황형(~할 때), 비교형(~vs~/~차이), 경험형(~했을 때), 판단형(~고르는 기준/~확인할 것)
+- 앞세울 강점이 H2 하나에 자연스럽게 녹을 것
+- 4~5개
+
+JSON: {{"title":"제목","h2_titles":["H2-1","H2-2","H2-3","H2-4"],"cta_approach":"장벽 제거 방식"}}
+"""}],
+            max_tokens=500, temperature=0.3,
+            response_format={'type': 'json_object'}
+        )
+        structure = _json.loads(r3.choices[0].message.content)
+
+        # STEP 4: hook_opening — 후보 3개 후 AI 패턴 소거
+        r4 = client.chat.completions.create(
+            model='gpt-4o',
+            messages=[{'role': 'user', 'content': f"""
+블로그 첫 문단 오프닝을 만든다.
+
+제목: {structure.get('title')}
+훅 타입: {strategy.get('hook_type')}
+타겟: {strategy.get('target_state')} — {strategy.get('target_state_reason')}
+
+후보 3개 작성:
+- 각 2문장
+- 사람이 쓴 것처럼. AI 티 절대 없이.
+- 금지: ~인가요?, ~하셨나요?, ~원하신다면, ~중요합니다, ~알아보겠습니다, 안녕하세요
+
+3개 중 가장 자연스러운 것 1개 선택.
+JSON: {{"candidates":["후보1","후보2","후보3"],"selected":"최종 2문장"}}
+"""}],
+            max_tokens=500, temperature=0.5,
+            response_format={'type': 'json_object'}
+        )
+        hook_result = _json.loads(r4.choices[0].message.content)
+
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+    return jsonify({
+        'ok':                  True,
+        'keyword':             keyword,
+        'keyword_candidates':  kw.get('candidates', []),
+        'keyword_reason':      kw.get('reason', ''),
+        'target_state':        strategy.get('target_state', ''),
+        'target_state_reason': strategy.get('target_state_reason', ''),
+        'lead_strength':       strategy.get('lead_strength', ''),
+        'lead_from':           strategy.get('lead_from', ''),
+        'elimination':         strategy.get('elimination', ''),
+        'hook_type':           strategy.get('hook_type', ''),
+        'title':               structure.get('title', ''),
+        'h2_titles':           structure.get('h2_titles', []),
+        'hook_opening':        hook_result.get('selected', ''),
+        'cta_approach':        structure.get('cta_approach', '')
+    })
+
+
 @app.route('/api/generate-report', methods=['POST'])
 def api_generate_report():
     week_start = request.json.get('week_start')
