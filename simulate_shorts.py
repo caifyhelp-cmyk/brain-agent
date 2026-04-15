@@ -9,12 +9,14 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 import anthropic
 from openai import OpenAI
-from agent import analyze, translate_to_scene
+from agent import analyze, video_plan_brain, extract_video_case_from_feedback
 from config_helper import get_config
 
+import db
 cfg = get_config()
 client = OpenAI(api_key=cfg.get('openai_api_key'))
 claude = anthropic.Anthropic(api_key=cfg.get('anthropic_api_key'))
+db.init_db()
 
 
 def claude_generate(system_prompt: str, user_content: str, max_tokens: int = 16000) -> str:
@@ -38,17 +40,17 @@ def claude_generate(system_prompt: str, user_content: str, max_tokens: int = 160
 
 # ── 테스트 브랜드 ──────────────────────────────────────
 TEST_BRAND = {
-    "brand_name": "온새미로 한식당",
-    "product_name": "점심 한정식 / 직장인 정기권",
-    "industry": "외식 / 한식당",
-    "goal": "직장인 정기권 가입 유도",
-    "ages": "30대 ~ 50대 직장인",
-    "product_strengths": "매일 바뀌는 7찬 한정식 / 15분 내 착석~퇴장 가능 / 회사 반경 200m / 예약 없이 바로 입장",
-    "extra_strength": "주방장 20년 경력 / 조미료 무첨가 / 정기권 쓰면 줄 안 서도 됨",
-    "tones": "신뢰, 편안함",
-    "action_style": "정기권 문의 유도",
+    "brand_name": "무브킹 이사센터",
+    "product_name": "포장이사 / 원룸이사",
+    "industry": "이사/이삿짐센터",
+    "goal": "견적 문의 유도",
+    "ages": "20대~40대",
+    "product_strengths": "당일 예약 가능 / 파손 제로 보증 / 3인 전문팀 / 30분 내 견적 확정",
+    "extra_strength": "이사 후 청소 서비스 포함 / 후기 500개 이상",
+    "tones": "신뢰, 빠름",
+    "action_style": "견적 문의 유도",
     "service_types": "오프라인 / 대면",
-    "forbidden_phrases": "맛있는 / 건강한"
+    "forbidden_phrases": "저렴한 / 착한 가격"
 }
 
 # ── 비틀기 예시 케이스 ─────────────────────────────────
@@ -151,6 +153,7 @@ ROUND1_SYSTEM = """
 
 [번역된 장면 — 이것이 이번 영상의 출발점이다]
 장면: {scene_line}
+웃음 메커니즘: {mechanism}
 이유: {scene_reason}
 
 creative_approach: {creative_approach}
@@ -161,12 +164,16 @@ creative_approach: {creative_approach}
 
 [임무]
 - 번역된 장면을 그대로 받아서 30초 영상 전체를 기획해라
-- 장면을 바꾸지 마라. 단, 더 구체적이고 선명하게 만들 수 있다
+- 첫 3초 장면은 이미 결정됐다. 더 웃기거나 충격적으로 만들 수 있으면 그렇게 해라
 - 소거 목록 방향으로 가지 마라
+
+[첫 3초 필수 조건 — 번역 장면을 발전시켜라]
+- 시청자가 웃거나(ㅋㅋ) 놀라거나(어?) 공감 폭발해야 한다
+- "쿨하게 보여주는" 장면은 실패다. 감정이 터져야 한다
+- 등장인물의 과장된 리액션, 황당한 상황, 예상 밖 결과 중 하나가 첫 3초에 있어야 한다
 
 [제약]
 - 현실에서 실제 촬영 가능한 장면만. 판타지/합성/VFX 없음
-- 첫 3초: 번역된 장면이 그대로 들어감
 - 마지막: 문구/자막이 아닌 장면/감정으로 끝내라
 
 [출력 형식 — 간결하게]
@@ -255,7 +262,8 @@ def situation_text(brand):
 """
 
 
-def run():
+def run() -> str:
+    """Returns brand_info for post-run feedback extraction."""
     sep = "=" * 60
     output = []
 
@@ -321,42 +329,12 @@ def run():
     print(f"creative_approach: {creative_approach}")
     print(f"approach_reason: {brain.get('approach_reason', '')}")
 
-    # ── STEP 1.5: 번역 단계 — 전략 → 장면 한 줄 (뇌 에이전트가 번역) ──
+    # ── STEP 2: 영상 기획 뇌 (18케이스 기반) ──────────────
     print(f"\n{sep}")
-    print("STEP 1.5: 번역 단계 (전략 → 장면 한 줄)")
+    print("STEP 2: 영상 기획 뇌 — 18케이스 기반 기획")
     print(sep)
 
-    translation = translate_to_scene(brain, brand_info)
-    scene_line = translation.get('scene_line', '')
-    scene_reason = translation.get('scene_reason', '')
-
-    print(f"장면: {scene_line}")
-    print(f"이유: {scene_reason}")
-
-    output.append(f"\n{sep}")
-    output.append("STEP 1.5: 번역 단계")
-    output.append(sep)
-    output.append(f"장면: {scene_line}")
-    output.append(f"이유: {scene_reason}")
-
-    # ── STEP 2: 초안 생성 ─────────────────────────────────
-    print(f"\n{sep}")
-    print("STEP 2: Round 1 — 초안 생성")
-    print(sep)
-
-    brain_summary = f"""판단: {brain.get('judgment', '')}
-이유: {brain.get('reason', '')}
-실행 힌트: {brain.get('action', '')}"""
-
-    r1_system = ROUND1_SYSTEM.format(
-        brain_judgment=brain_summary,
-        scene_line=scene_line,
-        scene_reason=scene_reason,
-        creative_approach=creative_approach,
-        approach_guide=approach_guide,
-        banned_patterns=banned_str,
-    )
-    draft = claude_generate(r1_system, brand_info)
+    draft = video_plan_brain(brain, brand_info, banned_str)
     print(draft)
 
     output.append(f"\n{sep}")
@@ -409,7 +387,30 @@ def run():
     with open(save_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(output))
     print(f"\n\n결과 저장: {save_path}")
+    return brand_info
 
 
 if __name__ == '__main__':
-    run()
+    brand_info = run()
+
+    # ── 피드백 → 자동 케이스 추출 ─────────────────────────
+    print("\n" + "=" * 60)
+    print("나라면 이렇게 하겠다 (있으면 입력, 없으면 엔터):")
+    try:
+        feedback = input("> ").strip()
+    except EOFError:
+        feedback = ""
+
+    if feedback:
+        # Windows 인코딩 안전 처리
+        safe_brand = brand_info.encode('utf-8', errors='ignore').decode('utf-8')
+        safe_feedback = feedback.encode('utf-8', errors='ignore').decode('utf-8')
+        result = extract_video_case_from_feedback(safe_feedback, safe_brand)
+        if 'error' not in result:
+            print(f"\n케이스 추출 완료 (pending #{result.get('id')})")
+            print(f"업종: {result.get('industry')}")
+            print(f"뻔한방향: {result.get('boring_direction')}")
+            print(f"기획: {result.get('plan')}")
+            print("\n→ 웹에서 검토 후 승인하면 다음 기획에 반영됩니다.")
+        else:
+            print(f"추출 실패: {result['error']}")

@@ -197,6 +197,15 @@ def init_db():
             model TEXT DEFAULT 'text-embedding-3-small',
             created_at TEXT DEFAULT ({now})
         )''',
+        f'''CREATE TABLE IF NOT EXISTS video_cases (
+            id {pk},
+            industry TEXT NOT NULL,
+            boring_direction TEXT NOT NULL,
+            plan TEXT NOT NULL,
+            source TEXT DEFAULT 'manual',
+            status TEXT DEFAULT 'approved',
+            created_at TEXT DEFAULT ({now})
+        )''',
     ]
 
     for sql in tables:
@@ -206,6 +215,8 @@ def init_db():
 
     # 패턴 JSON → DB 시드 (patterns_db가 비어있을 때만)
     _seed_patterns_from_json()
+    # 영상 기획 케이스 시드 (비어있을 때만)
+    seed_video_cases()
 
 
 def _seed_patterns_from_json():
@@ -662,6 +673,96 @@ def get_pattern_suggestions():
             result.append({'category': p.get('category', '기타'), 'rule': rule,
                            'from_company': row['company'], 'case_score': row['match_score'], 'case_id': row['id']})
     return result
+
+
+# ── 영상 기획 케이스 ──────────────────────────────────────
+
+_VIDEO_SEED_CASES = [
+    ("법무법인", "문제 제시 + 상담 CTA", "법정, 긴장감 속 변호사 완벽한 변론 → 판사 무죄 선고 → 페이드아웃"),
+    ("뷰티클리닉 - 20대", "시술 전후 비교", "예쁜 여성이 걸어가는데 지나치는 남자들이 다 뒤돌아봄 → OO클리닉"),
+    ("뷰티클리닉 - 중장년", "시술 전후 비교", "20대보다 탱탱한 피부의 중장년 여성 → 또래 역행 장면"),
+    ("헬스장 - 소형", "몸매 변화 전후", "대형 헬스장 앞에서 커플이 줄 서며 '여기 진짜 맛집인가봐' 대화 → 시점 전환, 소형 헬스장 1:1 PT 장면"),
+    ("헬스장 - 대형", "몸매 변화 전후", "사람들이 우르르 몰려오는 대형 헬스장 → 소셜 프루프로 증명"),
+    ("식당/카페 - 디저트", "음식 클로즈업 + 맛있겠다", "커플이 격하게 싸우는데 사이로 케이크 마지막 조각에 포크 2개 꽂혀있음 → '10년차 연인도 싸우게 만드는 케이크' → OO카페"),
+    ("부동산", "좋은 집 소개 + 문의", "직원이 전화 폭주에 으아아아 소리 지르며, 집 보러 사람들이 우르르 뒤따라옴 → '대입보다 경쟁률 높은 부동산' → OO부동산"),
+    ("학원", "합격 후기 + 성적 수치", "주인공이 맨날 밖에서 놀고 수업 때 잠만 자는데 → 갑자기 눈이 활활 불타며 서울대 합격 → '공부는 재밌어야 한다' → OO학원"),
+    ("펫샵/동물병원", "귀여운 동물 + 전문 케어", "젊은 여성 주변에 새끼 강아지들이 뛰어오고 재롱 피우는데 → 꿈에서 깨듯 화면 전환, 여성이 벌떡 일어남 → '세상 귀여운 강아지는 모두 여기에' → OO펫샵"),
+    ("인테리어/리모델링", "시공 전후 + 견적 문의", "주부가 친구 초대해 집 보여줌, 친구 부러워하며 '1억 썼어?' → 반대로 그 친구가 초대하니 처음 주부가 말 못하고 허탈 → '나는 OO인테리어에서 5천만원에 이렇게 했어!'"),
+    ("카이로프랙틱/정형외과", "통증 호소 + 치료 후 개선", "젊고 몸 좋은 사람이 헉헉거리며 뛰는데 → 옆에서 노인이 훨씬 빠르게 꼿꼿하게 앞서감 → '통증 100% 완치' → OO정형외과"),
+    ("웨딩/스드메", "아름다운 웨딩 + 패키지 문의", "스카이캐슬 과외 선생님 '전적으로 절 믿으셔야 합니다' 장면 오마주 → 웨딩 플래너가 똑같은 포즈로"),
+    ("세무사/회계사", "절세 팁 + 상담", "수돗꼭지에서 물이 나오다가 점점 돈으로 바뀌며 콸콸 새는데 → 수리기사가 땀 흘리며 고치려다 자꾸 새기만 함 → 다른 수리기사가 밀치고 한번에 탁 고치며 정장으로 전환"),
+    ("보험", "위험 상황 + 가입 유도", "끼이익 차 사고 소리 → 화면 분할, 한쪽 컬러로 보험 있어서 수술+재활 완료, 한쪽 흑백으로 가족들이 힘들어하고 의사 선고 → 가족 욺"),
+    ("이커머스/온라인쇼핑몰", "상품 + 할인 강조", "두두둥 어두웠다 밝아지며 드라마틱 리빌 → 모델이 상품 실제로 사용하는 장면 위주, 설명 최소화"),
+    ("SaaS/IT솔루션", "기능 설명 + 데모 요청", "인하우스 마케터들이 엄청 바삐 우왕좌왕 → 화면 전환, 마케터 1명이 SaaS로 훨씬 빠르게 처리"),
+    ("프랜차이즈 창업", "성공 사례 + 설명회", "손님 없는 매장에서 사장이 한숨 → 갑자기 사람들이 들어와 매장 싹 바꿔버림 → 손님 몰림 → OO치킨"),
+    ("금융/대출", "금리 비교 + 신청 유도", "주인공이 대출 상징 인물 앞에서 절규하며 주저앉아 욺 → 우리 상품이 달려와서 드롭킥으로 차버림 → 주인공 일으켜서 안아줌"),
+    ("카센터/자동차정비", "수리 전후 + 친절한 정비사", "옛날 시대극 느낌으로 웃기게 생긴 주인공이 '환자가 있소!! 아무도 없소?!!' 울먹이며 외치는데 → 점점 멀어지며 리어카 등장 → '정녕 아무도 없는거요!!' → 정비사가 뚝딱 고침 → '리어카도 당일 수리하는 OO카센터'"),
+    ("이사/이삿짐센터", "이사 과정 편리함 + 파손 없음 강조", "올림픽 컬링 중계처럼 연출 → 상반신만 보이는 선수가 극도로 진지하게 자세 잡고 스톤 놓는 동작 → 놓는 순간 냉장고가 컬링 스톤처럼 슉 미끄러져 딱 제자리에 들어옴 → 아나운서 감탄 '완벽한 배치입니다!!' → '이사도 국가대표급으로'"),
+]
+
+
+def seed_video_cases():
+    """초기 19케이스 DB 시드 (비어있을 때만)"""
+    conn = get_conn()
+    count = (_fetchone(conn, 'SELECT COUNT(*) as cnt FROM video_cases') or {}).get('cnt', 0)
+    conn.close()
+    if count > 0:
+        return
+    conn = get_conn()
+    ph = _ph()
+    for industry, boring, plan in _VIDEO_SEED_CASES:
+        _insert(conn,
+            f'INSERT INTO video_cases (industry, boring_direction, plan, source, status) VALUES ({ph},{ph},{ph},{ph},{ph})',
+            [industry, boring, plan, 'seeded', 'approved'])
+    conn.close()
+    print(f"[DB] 영상 기획 케이스 시드 완료 ({len(_VIDEO_SEED_CASES)}개)")
+
+
+def add_video_case(industry: str, boring_direction: str, plan: str,
+                   source: str = 'extracted', status: str = 'pending') -> int:
+    conn = get_conn()
+    ph = _ph()
+    new_id = _insert(conn,
+        f'INSERT INTO video_cases (industry, boring_direction, plan, source, status) VALUES ({ph},{ph},{ph},{ph},{ph})',
+        [industry, boring_direction, plan, source, status])
+    conn.close()
+    return new_id
+
+
+def get_approved_video_cases() -> list:
+    conn = get_conn()
+    rows = _fetchall(conn, "SELECT * FROM video_cases WHERE status='approved' ORDER BY id ASC")
+    conn.close()
+    return rows
+
+
+def get_pending_video_cases() -> list:
+    conn = get_conn()
+    rows = _fetchall(conn, "SELECT * FROM video_cases WHERE status='pending' ORDER BY created_at DESC")
+    conn.close()
+    return rows
+
+
+def approve_video_case(case_id: int):
+    conn = get_conn()
+    ph = _ph()
+    _exec(conn, f"UPDATE video_cases SET status='approved' WHERE id={ph}", [case_id])
+    conn.close()
+
+
+def reject_video_case(case_id: int):
+    conn = get_conn()
+    ph = _ph()
+    _exec(conn, f"UPDATE video_cases SET status='rejected' WHERE id={ph}", [case_id])
+    conn.close()
+
+
+def get_video_case_counts() -> dict:
+    conn = get_conn()
+    approved = (_fetchone(conn, "SELECT COUNT(*) as cnt FROM video_cases WHERE status='approved'") or {}).get('cnt', 0)
+    pending = (_fetchone(conn, "SELECT COUNT(*) as cnt FROM video_cases WHERE status='pending'") or {}).get('cnt', 0)
+    conn.close()
+    return {'approved': approved, 'pending': pending}
 
 
 def get_missed_frequency(limit=20):
