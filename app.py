@@ -944,8 +944,6 @@ def _mcp_handle(method, params, msg_id):
 
 @app.route('/video-cases')
 def video_cases():
-    if not session.get('is_owner'):
-        return redirect('/')
     cases = db.get_approved_video_cases()
     counts = db.get_video_case_counts()
     return render_template('video_cases.html', cases=cases, counts=counts)
@@ -953,16 +951,12 @@ def video_cases():
 
 @app.route('/api/video-cases/delete/<int:case_id>', methods=['POST'])
 def api_delete_video_case(case_id):
-    if not session.get('is_owner'):
-        return jsonify({'error': 'unauthorized'}), 403
     db.reject_video_case(case_id)
     return jsonify({'status': 'ok'})
 
 
 @app.route('/video-simulations')
 def video_simulations():
-    if not session.get('is_owner'):
-        return redirect('/')
     sims = db.get_video_simulations(limit=50)
     counts = db.get_video_simulation_counts()
     return render_template('video_simulations.html', sims=sims, counts=counts)
@@ -970,25 +964,19 @@ def video_simulations():
 
 @app.route('/api/video-simulations/promote/<int:sim_id>', methods=['POST'])
 def api_promote_video_simulation(sim_id):
-    if not session.get('is_owner'):
-        return jsonify({'error': 'unauthorized'}), 403
     case_id = db.promote_video_simulation(sim_id)
     return jsonify({'status': 'ok', 'case_id': case_id})
 
 
 @app.route('/api/video-simulations/dismiss/<int:sim_id>', methods=['POST'])
 def api_dismiss_video_simulation(sim_id):
-    if not session.get('is_owner'):
-        return jsonify({'error': 'unauthorized'}), 403
     db.dismiss_video_simulation(sim_id)
     return jsonify({'status': 'ok'})
 
 
 @app.route('/api/video-simulations/run', methods=['POST'])
 def api_run_video_simulation():
-    """즉시 영상 시뮬레이션 1건 실행 (owner 전용)"""
-    if not session.get('is_owner'):
-        return jsonify({'error': 'unauthorized'}), 403
+    """즉시 영상 시뮬레이션 1건 실행"""
     try:
         result = video_simulator.run_video_simulation()
         return jsonify({'status': 'ok', 'id': result.get('id')})
