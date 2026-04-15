@@ -977,12 +977,43 @@ def api_dismiss_video_simulation(sim_id):
 
 @app.route('/api/video-simulations/run', methods=['POST'])
 def api_run_video_simulation():
-    """즉시 영상 시뮬레이션 1건 실행"""
+    """즉시 영상 시뮬레이션 1건 실행 (랜덤 또는 커스텀 브랜드)"""
+    data = request.json or {}
+    brand = data.get('brand') or None  # None이면 랜덤
     try:
-        result = video_simulator.run_video_simulation()
+        result = video_simulator.run_video_simulation(brand=brand)
+        if 'error' in result:
+            return jsonify({'status': 'error', 'message': result['error']}), 500
         return jsonify({'status': 'ok', 'id': result.get('id')})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/video-simulations/feedback/<int:sim_id>', methods=['POST'])
+def api_video_simulation_feedback(sim_id):
+    """시뮬레이션 결과에 '나라면 이렇게' 피드백 → 케이스로 저장"""
+    data = request.json or {}
+    feedback = data.get('feedback', '').strip()
+    if not feedback:
+        return jsonify({'error': '피드백 내용이 없습니다'}), 400
+
+    sims = db.get_video_simulations(limit=200)
+    sim = next((s for s in sims if s['id'] == sim_id), None)
+    if not sim:
+        return jsonify({'error': '시뮬레이션을 찾을 수 없습니다'}), 404
+
+    brand = sim.get('brand', {})
+    brand_info = video_simulator.situation_text(brand)
+
+    from agent import extract_video_case_from_feedback
+    safe_brand = brand_info.encode('utf-8', errors='ignore').decode('utf-8')
+    safe_feedback = feedback.encode('utf-8', errors='ignore').decode('utf-8')
+    result = extract_video_case_from_feedback(safe_feedback, safe_brand)
+
+    if 'error' in result:
+        return jsonify({'status': 'error', 'message': result['error']}), 500
+    return jsonify({'status': 'ok', 'case_id': result.get('id'),
+                    'industry': result.get('industry'), 'plan': result.get('plan')})
 
 
 @app.route('/robots.txt')

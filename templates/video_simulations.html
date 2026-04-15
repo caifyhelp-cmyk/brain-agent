@@ -3,86 +3,131 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>뇌 에이전트 — 영상 시뮬레이션</title>
+<title>뇌 에이전트 — 영상 기획</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
 
-  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; flex-wrap: wrap; }
-  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
-  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
-  nav a:hover { color: #fff; }
-  nav a.active { color: #fff; border-bottom-color: #ff9f43; }
+nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 24px; display: flex; align-items: center; gap: 24px; height: 56px; overflow-x: auto; }
+nav .logo { font-weight: 700; font-size: 15px; color: #fff; white-space: nowrap; }
+nav a { color: #888; text-decoration: none; font-size: 13px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; white-space: nowrap; }
+nav a:hover { color: #fff; }
+nav a.active { color: #ff9f43; border-bottom-color: #ff9f43; }
 
-  main { padding: 32px; max-width: 1000px; margin: 0 auto; }
+main { padding: 28px 32px; max-width: 1100px; margin: 0 auto; }
 
-  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
-  h1 { font-size: 20px; font-weight: 700; color: #fff; }
-  .meta { font-size: 13px; color: #555; margin-top: 4px; }
-  .meta span { color: #888; }
+/* ── 헤더 ── */
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
+.page-header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+.page-meta { font-size: 12px; color: #555; margin-top: 4px; }
+.page-meta span { color: #888; }
+.header-btns { display: flex; gap: 10px; flex-wrap: wrap; }
 
-  .btn-run { background: #6c63ff22; border: 1px solid #6c63ff55; color: #9c94ff; border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-  .btn-run:hover { background: #6c63ff44; border-color: #6c63ff; }
-  .btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
+/* ── 버튼 ── */
+.btn { border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all 0.15s; white-space: nowrap; border: 1px solid; }
+.btn-purple { background: #6c63ff22; border-color: #6c63ff55; color: #9c94ff; }
+.btn-purple:hover { background: #6c63ff44; border-color: #6c63ff; }
+.btn-orange { background: #ff9f4322; border-color: #ff9f4355; color: #ff9f43; }
+.btn-orange:hover { background: #ff9f4344; border-color: #ff9f43; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .sim-list { display: flex; flex-direction: column; gap: 16px; }
+/* ── 커스텀 브랜드 폼 ── */
+.custom-form { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; margin-bottom: 24px; display: none; }
+.custom-form.open { display: block; }
+.custom-form h3 { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 11px; color: #555; font-weight: 600; }
+.form-group input, .form-group textarea {
+  background: #0f0f13; border: 1px solid #2a2a3a; border-radius: 6px;
+  color: #ddd; font-size: 13px; padding: 8px 10px; outline: none;
+  transition: border-color 0.15s; font-family: inherit;
+}
+.form-group input:focus, .form-group textarea:focus { border-color: #6c63ff55; }
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.btn-submit { background: #ff9f4322; border: 1px solid #ff9f4355; color: #ff9f43; border-radius: 8px; padding: 9px 22px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.btn-submit:hover { background: #ff9f4344; border-color: #ff9f43; }
+.btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-cancel { background: none; border: 1px solid #2a2a3a; color: #666; border-radius: 8px; padding: 9px 18px; font-size: 13px; cursor: pointer; }
 
-  .sim-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; overflow: hidden; }
-  .sim-card.approved { border-color: #2a3a2a; opacity: 0.5; pointer-events: none; }
-  .sim-card.dismissed { opacity: 0.2; pointer-events: none; }
+/* ── 카드 ── */
+.sim-list { display: flex; flex-direction: column; gap: 16px; }
+.sim-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+.sim-card:hover { border-color: #3a3a4a; }
+.sim-card.approved { border-color: #2a3a2a; opacity: 0.45; pointer-events: none; }
+.sim-card.dismissed { opacity: 0.18; pointer-events: none; }
 
-  /* 카드 헤더 — 항상 표시 */
-  .sim-top { padding: 18px 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; cursor: pointer; }
-  .sim-top:hover { background: #1e1e2e; }
-  .sim-brand { font-size: 14px; font-weight: 600; color: #9c94ff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .sim-industry { font-size: 12px; color: #555; margin-top: 3px; }
-  .sim-date { font-size: 11px; color: #444; white-space: nowrap; }
-  .toggle-icon { font-size: 12px; color: #444; margin-top: 2px; }
+/* 카드 헤더 */
+.card-top { padding: 16px 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; cursor: pointer; }
+.card-top:hover { background: #1d1d28; }
+.card-brand { font-size: 14px; font-weight: 600; color: #9c94ff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card-sub { font-size: 12px; color: #555; margin-top: 3px; }
+.card-right { display: flex; align-items: center; gap: 12px; }
+.card-date { font-size: 11px; color: #3a3a4a; white-space: nowrap; }
+.toggle-icon { font-size: 11px; color: #3a3a4a; }
 
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
-  .badge-pending { background: #2a2a1a; color: #aaaa44; border: 1px solid #3a3a2a; }
-  .badge-approved { background: #1a3a1a; color: #44aa44; border: 1px solid #2a5a2a; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.badge-pending { background: #2a2a1a; color: #aaaa44; border: 1px solid #3a3a2a; }
+.badge-approved { background: #1a3a1a; color: #44aa44; border: 1px solid #2a5a2a; }
 
-  /* 상세 패널 */
-  .sim-detail { display: none; border-top: 1px solid #252535; }
-  .sim-detail.open { display: block; }
+/* 상세 패널 */
+.card-detail { display: none; border-top: 1px solid #1e1e2e; }
+.card-detail.open { display: block; }
 
-  /* 파이프라인 3단 */
-  .pipeline { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
-  @media (max-width: 700px) { .pipeline { grid-template-columns: 1fr; } }
+/* 파이프라인 4단 */
+.pipeline { display: grid; grid-template-columns: 220px 1fr 1fr 1fr; }
+@media (max-width: 900px) { .pipeline { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .pipeline { grid-template-columns: 1fr; } }
 
-  .pipe-block { padding: 16px 20px; border-right: 1px solid #252535; }
-  .pipe-block:last-child { border-right: none; }
-  .pipe-label { font-size: 10px; font-weight: 700; color: #555; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
-  .pipe-content { font-size: 13px; color: #bbb; line-height: 1.6; white-space: pre-wrap; }
+.pipe-col { padding: 16px 18px; border-right: 1px solid #1e1e2e; }
+.pipe-col:last-child { border-right: none; }
+.pipe-label { font-size: 10px; font-weight: 700; color: #444; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.pipe-label .step-dot { width: 6px; height: 6px; border-radius: 50%; background: #444; }
 
-  /* 상황 블록 */
-  .pipe-block.situation .pipe-content { color: #aaa; }
-  .brand-row { display: flex; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
-  .brand-tag { font-size: 11px; background: #1e1e2e; border: 1px solid #2a2a3a; border-radius: 6px; padding: 2px 8px; color: #888; }
+/* 상황 */
+.pipe-col.situation { background: #15151e; }
+.brand-tag { display: inline-block; font-size: 10px; background: #1e1e2e; border: 1px solid #252535; border-radius: 4px; padding: 2px 7px; color: #666; margin: 2px 2px 2px 0; }
+.sit-row { font-size: 12px; color: #777; line-height: 1.6; margin-top: 8px; }
+.sit-row strong { color: #555; }
 
-  /* 판단 블록 */
-  .pipe-block.judgment .pipe-content { color: #c9b8ff; }
-  .judgment-field { margin-bottom: 10px; }
-  .judgment-field:last-child { margin-bottom: 0; }
-  .jf-label { font-size: 10px; color: #555; font-weight: 600; margin-bottom: 3px; }
-  .jf-val { font-size: 12px; color: #bbb; line-height: 1.5; }
-  .confidence-bar { height: 4px; background: #252535; border-radius: 2px; margin-top: 4px; }
-  .confidence-fill { height: 4px; border-radius: 2px; background: linear-gradient(90deg, #6c63ff, #9c94ff); }
+/* 판단 */
+.pipe-col.judgment { background: #131320; }
+.jf { margin-bottom: 10px; }
+.jf:last-child { margin-bottom: 0; }
+.jf-label { font-size: 10px; color: #444; font-weight: 700; margin-bottom: 3px; }
+.jf-val { font-size: 12px; color: #aaa; line-height: 1.5; }
+.jf-val.approach { color: #9c94ff; font-weight: 600; }
+.conf-bar { height: 3px; background: #1e1e2e; border-radius: 2px; margin-top: 5px; }
+.conf-fill { height: 3px; border-radius: 2px; background: linear-gradient(90deg, #6c63ff, #c084fc); }
 
-  /* 최종 기획 블록 */
-  .pipe-block.final { background: #15151e; }
-  .pipe-block.final .pipe-content { color: #ddd; font-size: 13px; }
+/* 초안 */
+.pipe-col.draft-col { background: #111118; }
+.pipe-col.draft-col .pipe-label .step-dot { background: #6c63ff; }
+.pipe-content { font-size: 12px; color: #999; line-height: 1.7; white-space: pre-wrap; }
 
-  /* 액션 */
-  .sim-actions { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #252535; background: #17171f; }
-  .btn-promote { background: #1a3a2a; border: 1px solid #2a5a3a; color: #6ddb9a; border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
-  .btn-promote:hover { background: #1e4a32; border-color: #4dbb7a; }
-  .btn-dismiss { background: none; border: 1px solid #3a2a2a; color: #884444; border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
-  .btn-dismiss:hover { background: #ff6b6b22; border-color: #ff6b6b44; color: #ff6b6b; }
+/* 최종 */
+.pipe-col.final-col { background: #0f0f13; }
+.pipe-col.final-col .pipe-label .step-dot { background: #ff9f43; }
+.pipe-col.final-col .pipe-content { color: #ccc; font-size: 13px; }
 
-  .empty { text-align: center; padding: 60px; color: #555; font-size: 14px; }
-  .toast { position: fixed; bottom: 24px; right: 24px; background: #1e3a2a; border: 1px solid #2a5a3a; color: #6ddb9a; padding: 12px 20px; border-radius: 10px; font-size: 13px; display: none; z-index: 999; }
+/* 피드백 + 액션 */
+.card-bottom { border-top: 1px solid #1e1e2e; padding: 14px 20px; background: #111116; }
+.feedback-area { margin-bottom: 12px; }
+.feedback-label { font-size: 11px; color: #555; font-weight: 600; margin-bottom: 6px; }
+.feedback-input { width: 100%; background: #0f0f13; border: 1px solid #252535; border-radius: 6px; color: #ccc; font-size: 13px; padding: 8px 12px; outline: none; font-family: inherit; resize: vertical; min-height: 52px; transition: border-color 0.15s; }
+.feedback-input:focus { border-color: #6c63ff44; }
+.card-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn-promote { background: #1a3a2a; border: 1px solid #2a5a3a; color: #6ddb9a; border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.btn-promote:hover { background: #1e4a32; border-color: #4dbb7a; }
+.btn-save-feedback { background: #1e1e30; border: 1px solid #3a3a55; color: #9c94ff; border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.btn-save-feedback:hover { background: #252540; border-color: #6c63ff55; }
+.btn-dismiss { background: none; border: 1px solid #2a1a1a; color: #664444; border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; margin-left: auto; }
+.btn-dismiss:hover { background: #ff6b6b11; border-color: #ff6b6b33; color: #ff6b6b; }
+
+.empty { text-align: center; padding: 60px; color: #555; font-size: 14px; }
+.toast { position: fixed; bottom: 24px; right: 24px; background: #1e3a2a; border: 1px solid #2a5a3a; color: #6ddb9a; padding: 12px 20px; border-radius: 10px; font-size: 13px; display: none; z-index: 999; box-shadow: 0 4px 20px #00000066; }
 </style>
 </head>
 <body>
@@ -97,17 +142,63 @@
   <a href="/train">트레이닝</a>
   <a href="/mine" style="color:#fcc419;">마이닝</a>
   <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
-  <a href="/video-simulations" class="active" style="color:#ff9f43;">영상 기획</a>
+  <a href="/video-simulations" class="active">영상 기획</a>
   <a href="/setup">설정</a>
 </nav>
 
 <main>
-  <div class="header">
+  <div class="page-header">
     <div>
-      <h1>영상 시뮬레이션</h1>
-      <p class="meta">대기 <span>{{ counts.pending }}</span>건 · 전체 <span>{{ counts.total }}</span>건 · 마음에 들면 케이스로 저장</p>
+      <h1>영상 기획 시뮬레이터</h1>
+      <p class="page-meta">대기 <span>{{ counts.pending }}</span>건 · 전체 <span>{{ counts.total }}</span>건 · 케이스 저장 시 다음 기획부터 반영</p>
     </div>
-    <button class="btn-run" id="btnRun" onclick="runNow()">지금 1건 실행</button>
+    <div class="header-btns">
+      <button class="btn btn-orange" onclick="toggleCustomForm()">브랜드 직접 입력</button>
+      <button class="btn btn-purple" id="btnRun" onclick="runRandom()">랜덤 1건 실행</button>
+    </div>
+  </div>
+
+  <!-- 커스텀 브랜드 입력 폼 -->
+  <div class="custom-form" id="customForm">
+    <h3>브랜드 정보 직접 입력</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>브랜드명</label>
+        <input type="text" id="f_brand_name" placeholder="예: 무브킹 이사센터">
+      </div>
+      <div class="form-group">
+        <label>업종</label>
+        <input type="text" id="f_industry" placeholder="예: 포장이사/이삿짐센터">
+      </div>
+      <div class="form-group">
+        <label>상품/서비스</label>
+        <input type="text" id="f_product_name" placeholder="예: 포장이사, 원룸이사">
+      </div>
+      <div class="form-group">
+        <label>목표</label>
+        <input type="text" id="f_goal" placeholder="예: 견적 문의 유도">
+      </div>
+      <div class="form-group">
+        <label>타겟 연령대</label>
+        <input type="text" id="f_ages" placeholder="예: 20대~40대">
+      </div>
+      <div class="form-group">
+        <label>톤/무드</label>
+        <input type="text" id="f_tones" placeholder="예: 신뢰, 빠름">
+      </div>
+      <div class="form-group" style="grid-column: span 2;">
+        <label>핵심 강점</label>
+        <input type="text" id="f_strengths" placeholder="예: 당일 예약 가능 / 파손 제로 보증 / 후기 500개">
+      </div>
+      <div class="form-group">
+        <label>금지 표현</label>
+        <input type="text" id="f_forbidden" placeholder="예: 저렴한 / 착한 가격">
+      </div>
+    </div>
+    <div class="form-footer">
+      <button class="btn-cancel" onclick="toggleCustomForm()">취소</button>
+      <button class="btn-submit" id="btnCustomRun" onclick="runCustom()">이 브랜드로 기획 실행</button>
+    </div>
   </div>
 
   {% if sims %}
@@ -117,80 +208,91 @@
     {% set br = s.brand if s.brand else {} %}
     <div class="sim-card {{ s.status }}" id="sim-{{ s.id }}">
 
-      <!-- 항상 보이는 헤더 -->
-      <div class="sim-top" onclick="toggle({{ s.id }})">
+      <div class="card-top" onclick="toggle({{ s.id }})">
         <div>
-          <div class="sim-brand">
+          <div class="card-brand">
             {{ br.brand_name or '—' }}
             {% if s.status == 'pending' %}<span class="badge badge-pending">대기</span>{% endif %}
             {% if s.status == 'approved' %}<span class="badge badge-approved">케이스 저장됨</span>{% endif %}
           </div>
-          <div class="sim-industry">{{ br.industry or '' }} · {{ br.goal or '' }} · 타겟 {{ br.ages or '' }}</div>
+          <div class="card-sub">{{ br.industry or '' }} · {{ br.goal or '' }} · {{ br.ages or '' }}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div class="sim-date">{{ s.created_at[:10] if s.created_at else '' }}</div>
+        <div class="card-right">
+          <div class="card-date">{{ s.created_at[:10] if s.created_at else '' }}</div>
           <div class="toggle-icon" id="icon-{{ s.id }}">▼</div>
         </div>
       </div>
 
-      <!-- 펼쳐지는 상세 -->
-      <div class="sim-detail" id="detail-{{ s.id }}">
+      <div class="card-detail" id="detail-{{ s.id }}">
         <div class="pipeline">
 
-          <!-- STEP 1: 상황 -->
-          <div class="pipe-block situation">
-            <div class="pipe-label">STEP 1 — 투입 상황</div>
-            <div class="brand-row">
+          <!-- STEP 1 상황 -->
+          <div class="pipe-col situation">
+            <div class="pipe-label"><span class="step-dot"></span>투입 상황</div>
+            <div>
               <span class="brand-tag">{{ br.industry or '' }}</span>
               <span class="brand-tag">{{ br.ages or '' }}</span>
               <span class="brand-tag">{{ br.tones or '' }}</span>
             </div>
-            <div class="pipe-content" style="margin-top:10px;">
-              <div style="margin-bottom:6px;"><span style="color:#555;">목표:</span> {{ br.goal or '' }}</div>
-              <div style="margin-bottom:6px;"><span style="color:#555;">강점:</span> {{ br.product_strengths or '' }}{% if br.extra_strength %} / {{ br.extra_strength }}{% endif %}</div>
-              <div style="margin-bottom:6px;"><span style="color:#555;">금지:</span> {{ br.forbidden_phrases or '' }}</div>
-            </div>
+            <div class="sit-row"><strong>목표</strong><br>{{ br.goal or '' }}</div>
+            <div class="sit-row" style="margin-top:8px;"><strong>강점</strong><br>{{ br.product_strengths or '' }}{% if br.extra_strength %} / {{ br.extra_strength }}{% endif %}</div>
+            {% if br.forbidden_phrases %}
+            <div class="sit-row" style="margin-top:8px;"><strong>금지어</strong><br>{{ br.forbidden_phrases }}</div>
+            {% endif %}
           </div>
 
-          <!-- STEP 2: 뇌 에이전트 판단 -->
-          <div class="pipe-block judgment">
-            <div class="pipe-label">STEP 2 — 뇌 에이전트 판단</div>
+          <!-- STEP 2 뇌 판단 -->
+          <div class="pipe-col judgment">
+            <div class="pipe-label"><span class="step-dot" style="background:#6c63ff;"></span>뇌 에이전트 판단</div>
             {% if bj %}
-            <div class="judgment-field">
+            <div class="jf">
               <div class="jf-label">핵심 판단</div>
               <div class="jf-val">{{ bj.judgment or '' }}</div>
             </div>
-            <div class="judgment-field">
+            <div class="jf">
               <div class="jf-label">실행 방향</div>
               <div class="jf-val">{{ bj.action or '' }}</div>
             </div>
-            <div class="judgment-field">
-              <div class="jf-label">creative_approach</div>
-              <div class="jf-val" style="color:#9c94ff;">{{ bj.creative_approach or '' }}</div>
+            <div class="jf">
+              <div class="jf-label">approach</div>
+              <div class="jf-val approach">{{ bj.creative_approach or '' }}</div>
             </div>
             {% if bj.confidence is defined %}
-            <div class="judgment-field">
+            <div class="jf">
               <div class="jf-label">신뢰도 {{ bj.confidence }}%</div>
-              <div class="confidence-bar"><div class="confidence-fill" style="width:{{ bj.confidence }}%"></div></div>
+              <div class="conf-bar"><div class="conf-fill" style="width:{{ bj.confidence }}%"></div></div>
             </div>
             {% endif %}
             {% else %}
-            <div class="pipe-content" style="color:#444;">판단 정보 없음</div>
+            <div class="pipe-content" style="color:#333;">-</div>
             {% endif %}
           </div>
 
-          <!-- STEP 3: 최종 기획 -->
-          <div class="pipe-block final">
-            <div class="pipe-label">STEP 3 — 최종 영상 기획</div>
-            <div class="pipe-content">{{ s.final_plan or '' }}</div>
+          <!-- STEP 3 초안 -->
+          <div class="pipe-col draft-col">
+            <div class="pipe-label"><span class="step-dot"></span>초안 (영상 기획 뇌)</div>
+            <div class="pipe-content">{{ s.draft or '—' }}</div>
+          </div>
+
+          <!-- STEP 4 최종 -->
+          <div class="pipe-col final-col">
+            <div class="pipe-label"><span class="step-dot"></span>최종 기획</div>
+            <div class="pipe-content">{{ s.final_plan or '—' }}</div>
           </div>
 
         </div>
 
         {% if s.status == 'pending' %}
-        <div class="sim-actions">
-          <button class="btn-promote" onclick="promote({{ s.id }})">케이스로 저장</button>
-          <button class="btn-dismiss" onclick="dismiss({{ s.id }})">삭제</button>
+        <div class="card-bottom">
+          <div class="feedback-area">
+            <div class="feedback-label">나라면 이렇게 했을 것 같다 (입력 시 케이스로 자동 저장)</div>
+            <textarea class="feedback-input" id="fb-{{ s.id }}" placeholder="예: 처음에 진짜 올림픽처럼 긴장감 주다가 컬링으로 하면 되겠다. 냉장고가 컬링처럼 슉 들어오는 느낌으로..."></textarea>
+          </div>
+          <div class="card-actions">
+            <button class="btn-promote" onclick="promote({{ s.id }})">결과 케이스로 저장</button>
+            <button class="btn-save-feedback" onclick="saveFeedback({{ s.id }})">내 버전 케이스로 저장</button>
+            <button class="btn-dismiss" onclick="dismiss({{ s.id }})">삭제</button>
+          </div>
         </div>
         {% endif %}
       </div>
@@ -199,7 +301,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="empty">시뮬레이션 결과가 없어요.<br>자동으로 매일 생성되거나 "지금 1건 실행"을 눌러보세요.</div>
+  <div class="empty">시뮬레이션 결과가 없어요.<br>"랜덤 1건 실행" 또는 "브랜드 직접 입력"으로 시작하세요.</div>
   {% endif %}
 </main>
 
@@ -207,64 +309,94 @@
 
 <script>
 function toggle(id) {
-  const detail = document.getElementById(`detail-${id}`);
-  const icon = document.getElementById(`icon-${id}`);
-  const isOpen = detail.classList.contains('open');
-  detail.classList.toggle('open', !isOpen);
-  icon.textContent = isOpen ? '▼' : '▲';
+  const d = document.getElementById(`detail-${id}`);
+  const ic = document.getElementById(`icon-${id}`);
+  const open = d.classList.toggle('open');
+  ic.textContent = open ? '▲' : '▼';
 }
 
-function showToast(msg) {
+function toggleCustomForm() {
+  document.getElementById('customForm').classList.toggle('open');
+}
+
+function showToast(msg, ok = true) {
   const t = document.getElementById('toast');
   t.textContent = msg;
+  t.style.background = ok ? '#1e3a2a' : '#3a1e1e';
+  t.style.borderColor = ok ? '#2a5a3a' : '#5a2a2a';
+  t.style.color = ok ? '#6ddb9a' : '#ff6b6b';
   t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 2500);
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+async function runRandom() {
+  const btn = document.getElementById('btnRun');
+  btn.disabled = true; btn.textContent = '실행 중...';
+  try {
+    const res = await fetch('/api/video-simulations/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+    const d = await res.json();
+    if (res.ok) { showToast('완료! 새로고침하면 결과가 나와요.'); btn.textContent = '새로고침'; btn.disabled = false; btn.onclick = () => location.reload(); }
+    else { showToast('오류: ' + (d.message || '실패'), false); btn.textContent = '랜덤 1건 실행'; btn.disabled = false; }
+  } catch(e) { showToast('네트워크 오류', false); btn.textContent = '랜덤 1건 실행'; btn.disabled = false; }
+}
+
+async function runCustom() {
+  const brand = {
+    brand_name: document.getElementById('f_brand_name').value.trim(),
+    industry: document.getElementById('f_industry').value.trim(),
+    product_name: document.getElementById('f_product_name').value.trim() || document.getElementById('f_industry').value.trim(),
+    goal: document.getElementById('f_goal').value.trim(),
+    ages: document.getElementById('f_ages').value.trim(),
+    tones: document.getElementById('f_tones').value.trim(),
+    product_strengths: document.getElementById('f_strengths').value.trim(),
+    extra_strength: '',
+    action_style: document.getElementById('f_goal').value.trim(),
+    service_types: '오프라인 / 대면',
+    forbidden_phrases: document.getElementById('f_forbidden').value.trim(),
+  };
+  if (!brand.brand_name || !brand.industry) { showToast('브랜드명과 업종은 필수입니다', false); return; }
+
+  const btn = document.getElementById('btnCustomRun');
+  btn.disabled = true; btn.textContent = '실행 중...';
+  try {
+    const res = await fetch('/api/video-simulations/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({brand}) });
+    const d = await res.json();
+    if (res.ok) { showToast('완료! 새로고침하면 결과가 나와요.'); btn.textContent = '완료 (새로고침)'; btn.disabled = false; btn.onclick = () => location.reload(); }
+    else { showToast('오류: ' + (d.message || '실패'), false); btn.textContent = '이 브랜드로 기획 실행'; btn.disabled = false; }
+  } catch(e) { showToast('네트워크 오류', false); btn.textContent = '이 브랜드로 기획 실행'; btn.disabled = false; }
 }
 
 async function promote(id) {
   const res = await fetch(`/api/video-simulations/promote/${id}`, { method: 'POST' });
-  if (res.ok) {
-    document.getElementById(`sim-${id}`).classList.replace('pending', 'approved') || document.getElementById(`sim-${id}`).classList.add('approved');
-    showToast('케이스로 저장됐어요!');
-  }
+  if (res.ok) { document.getElementById(`sim-${id}`).className = 'sim-card approved'; showToast('결과를 케이스로 저장했어요!'); }
 }
 
 async function dismiss(id) {
   const res = await fetch(`/api/video-simulations/dismiss/${id}`, { method: 'POST' });
-  if (res.ok) {
-    document.getElementById(`sim-${id}`).classList.add('dismissed');
-  }
+  if (res.ok) { document.getElementById(`sim-${id}`).classList.add('dismissed'); }
 }
 
-async function runNow() {
-  const btn = document.getElementById('btnRun');
-  btn.disabled = true;
-  btn.textContent = '실행 중...';
+async function saveFeedback(id) {
+  const fb = document.getElementById(`fb-${id}`).value.trim();
+  if (!fb) { showToast('피드백을 입력해주세요', false); return; }
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '저장 중...';
   try {
-    const res = await fetch('/api/video-simulations/run', { method: 'POST' });
-    if (res.ok) {
-      showToast('완료! 페이지를 새로고침해보세요.');
-      btn.textContent = '완료 (새로고침)';
-      btn.onclick = () => location.reload();
-      btn.disabled = false;
-    } else {
-      const d = await res.json().catch(() => ({}));
-      showToast('오류: ' + (d.message || '알 수 없는 오류'));
-      btn.textContent = '지금 1건 실행';
-      btn.disabled = false;
-    }
-  } catch (e) {
-    showToast('네트워크 오류');
-    btn.textContent = '지금 1건 실행';
-    btn.disabled = false;
-  }
+    const res = await fetch(`/api/video-simulations/feedback/${id}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({feedback: fb})
+    });
+    const d = await res.json();
+    if (res.ok) { showToast(`케이스 저장! (${d.industry})`); btn.textContent = '저장 완료'; }
+    else { showToast('저장 실패: ' + (d.message || ''), false); btn.textContent = '내 버전 케이스로 저장'; btn.disabled = false; }
+  } catch(e) { showToast('네트워크 오류', false); btn.textContent = '내 버전 케이스로 저장'; btn.disabled = false; }
 }
 
-// 첫 번째 카드는 기본 열림
+// 첫 카드 자동 열림
 document.addEventListener('DOMContentLoaded', () => {
-  const first = document.querySelector('.sim-detail');
-  const firstIcon = document.querySelector('.toggle-icon');
-  if (first) { first.classList.add('open'); firstIcon.textContent = '▲'; }
+  const first = document.querySelector('.sim-card:not(.dismissed):not(.approved) .card-detail');
+  const firstIcon = document.querySelector('.sim-card:not(.dismissed):not(.approved) .toggle-icon');
+  if (first) { first.classList.add('open'); if (firstIcon) firstIcon.textContent = '▲'; }
 });
 </script>
 </body>

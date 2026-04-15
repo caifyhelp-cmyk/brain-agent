@@ -212,6 +212,7 @@ def init_db():
             brand_json TEXT NOT NULL,
             brain_judgment_json TEXT NOT NULL,
             draft TEXT NOT NULL,
+            round2 TEXT DEFAULT '',
             final_plan TEXT NOT NULL,
             status TEXT DEFAULT 'pending'
         )''',
@@ -219,6 +220,12 @@ def init_db():
 
     for sql in tables:
         _exec(conn, sql)
+
+    # 마이그레이션: round2 컬럼 없으면 추가
+    try:
+        _exec(conn, "ALTER TABLE video_simulations ADD COLUMN round2 TEXT DEFAULT ''")
+    except Exception:
+        pass
 
     conn.close()
 
@@ -776,14 +783,14 @@ def get_video_case_counts() -> dict:
 
 # ── 영상 기획 자동 시뮬레이션 ────────────────────────────
 
-def save_video_simulation(brand: dict, brain_judgment: dict, draft: str, final_plan: str) -> int:
+def save_video_simulation(brand: dict, brain_judgment: dict, draft: str, final_plan: str, round2: str = '') -> int:
     conn = get_conn()
     ph = _ph()
     new_id = _insert(conn,
-        f'INSERT INTO video_simulations (brand_json, brain_judgment_json, draft, final_plan) VALUES ({ph},{ph},{ph},{ph})',
+        f'INSERT INTO video_simulations (brand_json, brain_judgment_json, draft, round2, final_plan) VALUES ({ph},{ph},{ph},{ph},{ph})',
         [json.dumps(brand, ensure_ascii=False),
          json.dumps(brain_judgment, ensure_ascii=False),
-         draft, final_plan])
+         draft, round2, final_plan])
     conn.close()
     return new_id
 
