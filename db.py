@@ -206,6 +206,15 @@ def init_db():
             status TEXT DEFAULT 'approved',
             created_at TEXT DEFAULT ({now})
         )''',
+        f'''CREATE TABLE IF NOT EXISTS video_simulations (
+            id {pk},
+            created_at TEXT DEFAULT ({now}),
+            brand_json TEXT NOT NULL,
+            brain_judgment_json TEXT NOT NULL,
+            draft TEXT NOT NULL,
+            final_plan TEXT NOT NULL,
+            status TEXT DEFAULT 'pending'
+        )''',
     ]
 
     for sql in tables:
@@ -763,6 +772,75 @@ def get_video_case_counts() -> dict:
     pending = (_fetchone(conn, "SELECT COUNT(*) as cnt FROM video_cases WHERE status='pending'") or {}).get('cnt', 0)
     conn.close()
     return {'approved': approved, 'pending': pending}
+
+
+# ── 영상 기획 자동 시뮬레이션 ────────────────────────────
+
+def save_video_simulation(brand: dict, brain_judgment: dict, draft: str, final_plan: str) -> int:
+    conn = get_conn()
+    ph = _ph()
+    new_id = _insert(conn,
+        f'INSERT INTO video_simulations (brand_json, brain_judgment_json, draft, final_plan) VALUES ({ph},{ph},{ph},{ph})',
+        [json.dumps(brand, ensure_ascii=False),
+         json.dumps(brain_judgment, ensure_ascii=False),
+         draft, final_plan])
+    conn.close()
+    return new_id
+
+
+def get_video_simulations(limit: int = 20) -> list:
+    conn = get_conn()
+    ph = _ph()
+    rows = _fetchall(conn,
+        f"SELECT * FROM video_simulations ORDER BY created_at DESC LIMIT {ph}", [limit])
+    conn.close()
+    for r in rows:
+        r['brand'] = json.loads(r['brand_json'])
+        r['brain_judgment'] = json.loads(r['brain_judgment_json'])
+    return rows
+
+
+def promote_video_simulation(sim_id: int) -> int:
+    """시뮬레이션 결과 → video_cases 승인"""
+    conn = get_conn()
+    ph = _ph()
+    row = _fetchone(conn, f'SELECT * FROM video_simulations WHERE id={ph}', [sim_id])
+    conn.close()
+    if not row:
+        return None
+    brand = json.loads(row['brand_json'])
+    # draft에서 뻔한방향 추출 시도
+    boring_dir = '(자동 시뮬레이션)'
+    for line in (row.get('draft') or '').splitlines():
+        if line.startswith('뻔한방향:'):
+            boring_dir = line.split(':', 1)[-1].strip()
+            break
+    case_id = add_video_case(
+        industry=brand.get('industry', ''),
+        boring_direction=boring_dir,
+        plan=row['final_plan'],
+        source='simulation',
+        status='approved'
+    )
+    conn = get_conn()
+    _exec(conn, f"UPDATE video_simulations SET status='approved' WHERE id={ph}", [sim_id])
+    conn.close()
+    return case_id
+
+
+def dismiss_video_simulation(sim_id: int):
+    conn = get_conn()
+    ph = _ph()
+    _exec(conn, f"UPDATE video_simulations SET status='dismissed' WHERE id={ph}", [sim_id])
+    conn.close()
+
+
+def get_video_simulation_counts() -> dict:
+    conn = get_conn()
+    pending = (_fetchone(conn, "SELECT COUNT(*) as cnt FROM video_simulations WHERE status='pending'") or {}).get('cnt', 0)
+    total = (_fetchone(conn, 'SELECT COUNT(*) as cnt FROM video_simulations') or {}).get('cnt', 0)
+    conn.close()
+    return {'pending': pending, 'total': total}
 
 
 def get_missed_frequency(limit=20):

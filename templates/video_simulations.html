@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뇌 에이전트 — 영상 시뮬레이션</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
+  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav a:hover { color: #fff; }
+  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+
+  main { padding: 32px; max-width: 960px; margin: 0 auto; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 700; color: #fff; }
+  .meta { font-size: 13px; color: #555; }
+  .meta span { color: #888; }
+
+  .btn-run { background: #6c63ff22; border: 1px solid #6c63ff55; color: #9c94ff; border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn-run:hover { background: #6c63ff44; border-color: #6c63ff; }
+  .btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .sim-list { display: flex; flex-direction: column; gap: 16px; }
+
+  .sim-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; }
+  .sim-card.approved { border-color: #2a3a2a; opacity: 0.5; pointer-events: none; }
+  .sim-card.dismissed { opacity: 0.25; pointer-events: none; }
+
+  .sim-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 12px; }
+  .sim-brand { font-size: 13px; font-weight: 600; color: #9c94ff; }
+  .sim-industry { font-size: 12px; color: #555; margin-top: 2px; }
+  .sim-date { font-size: 11px; color: #444; white-space: nowrap; }
+
+  .sim-plan { font-size: 14px; color: #ccc; line-height: 1.7; white-space: pre-wrap; border-top: 1px solid #252535; padding-top: 12px; margin-top: 4px; }
+
+  .sim-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .btn-promote { background: #1a3a2a; border: 1px solid #2a5a3a; color: #6ddb9a; border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn-promote:hover { background: #1e4a32; border-color: #4dbb7a; }
+  .btn-dismiss { background: none; border: 1px solid #3a2a2a; color: #884444; border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .btn-dismiss:hover { background: #ff6b6b22; border-color: #ff6b6b44; color: #ff6b6b; }
+
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+  .badge-pending { background: #2a2a1a; color: #aaaa44; border: 1px solid #3a3a2a; }
+  .badge-approved { background: #1a3a1a; color: #44aa44; border: 1px solid #2a5a2a; }
+
+  .empty { text-align: center; padding: 60px; color: #555; font-size: 14px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1e3a2a; border: 1px solid #2a5a3a; color: #6ddb9a; padding: 12px 20px; border-radius: 10px; font-size: 13px; display: none; z-index: 999; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">🧠 뇌 에이전트</span>
+  <a href="/">대시보드</a>
+  <a href="/grow">뇌 성장</a>
+  <a href="/patterns">패턴</a>
+  <a href="/report">리포트</a>
+  <a href="/real-cases">실제 사례</a>
+  <a href="/train">트레이닝</a>
+  <a href="/mine" style="color:#fcc419;">마이닝</a>
+  <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
+  <a href="/video-simulations" class="active" style="color:#ff9f43;">영상 기획</a>
+  <a href="/setup">설정</a>
+</nav>
+
+<main>
+  <div class="header">
+    <div>
+      <h1>영상 시뮬레이션</h1>
+      <p class="meta" style="margin-top:4px;">대기 <span>{{ counts.pending }}</span>건 · 전체 <span>{{ counts.total }}</span>건 · 마음에 들면 케이스로 저장하세요</p>
+    </div>
+    <button class="btn-run" id="btnRun" onclick="runNow()">지금 1건 실행</button>
+  </div>
+
+  {% if sims %}
+  <div class="sim-list">
+    {% for s in sims %}
+    <div class="sim-card {{ s.status }}" id="sim-{{ s.id }}">
+      <div class="sim-header">
+        <div>
+          <div class="sim-brand">
+            {{ s.brand.brand_name if s.brand else '—' }}
+            {% if s.status == 'pending' %}<span class="badge badge-pending" style="margin-left:8px;">대기</span>{% endif %}
+            {% if s.status == 'approved' %}<span class="badge badge-approved" style="margin-left:8px;">케이스 저장됨</span>{% endif %}
+          </div>
+          <div class="sim-industry">{{ s.brand.industry if s.brand else '' }} · {{ s.brand.goal if s.brand else '' }}</div>
+        </div>
+        <div class="sim-date">{{ s.created_at[:10] if s.created_at else '' }}</div>
+      </div>
+      <div class="sim-plan">{{ s.final_plan }}</div>
+      {% if s.status == 'pending' %}
+      <div class="sim-actions">
+        <button class="btn-promote" onclick="promote({{ s.id }})">케이스로 저장</button>
+        <button class="btn-dismiss" onclick="dismiss({{ s.id }})">삭제</button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">시뮬레이션 결과가 없어요.<br>자동으로 매일 생성되거나 "지금 1건 실행"을 눌러보세요.</div>
+  {% endif %}
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+async function promote(id) {
+  const res = await fetch(`/api/video-simulations/promote/${id}`, { method: 'POST' });
+  if (res.ok) {
+    const card = document.getElementById(`sim-${id}`);
+    card.classList.remove('pending');
+    card.classList.add('approved');
+    showToast('케이스로 저장됐어요!');
+  }
+}
+
+async function dismiss(id) {
+  const res = await fetch(`/api/video-simulations/dismiss/${id}`, { method: 'POST' });
+  if (res.ok) {
+    document.getElementById(`sim-${id}`).classList.add('dismissed');
+  }
+}
+
+async function runNow() {
+  const btn = document.getElementById('btnRun');
+  btn.disabled = true;
+  btn.textContent = '실행 중...';
+  try {
+    const res = await fetch('/api/video-simulations/run', { method: 'POST' });
+    if (res.ok) {
+      showToast('완료! 페이지를 새로고침해보세요.');
+      btn.textContent = '완료 (새로고침)';
+      btn.onclick = () => location.reload();
+      btn.disabled = false;
+    } else {
+      const d = await res.json();
+      showToast('오류: ' + (d.message || '알 수 없는 오류'));
+      btn.textContent = '지금 1건 실행';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    showToast('네트워크 오류');
+    btn.textContent = '지금 1건 실행';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

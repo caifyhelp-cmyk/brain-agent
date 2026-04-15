@@ -14,6 +14,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 import db
 import simulator
+import video_simulator
 import chat as chat_engine
 from config_helper import get_config
 
@@ -45,10 +46,12 @@ def _init_scheduler():
     try:
         scheduler.add_job(job_daily_simulations, 'cron', hour=sim_hour, minute=0, id='daily_sim')
         scheduler.add_job(job_weekly_report, 'cron', day_of_week='mon', hour=8, minute=0, id='weekly_report')
+        video_hour = get_config().get('video_simulation_hour', 10)
+        scheduler.add_job(job_video_simulations, 'cron', hour=video_hour, minute=30, id='video_sim')
         scheduler.start()
         import atexit
         atexit.register(lambda: scheduler.shutdown(wait=False))
-        print(f"[스케줄러] 시작 완료 — 매일 {sim_hour}시 자동 시뮬레이션")
+        print(f"[스케줄러] 시작 완료 — 매일 {sim_hour}시 마케팅 / {video_hour}시 30분 영상 시뮬레이션")
     except Exception as e:
         print(f"[스케줄러] 초기화 오류: {e}")
 
@@ -69,6 +72,17 @@ def job_daily_simulations():
     for i in range(count):
         try:
             simulator.run_simulation()
+            print(f"  {i+1}/{count} 완료")
+        except Exception as e:
+            print(f"  오류: {e}")
+
+
+def job_video_simulations():
+    count = get_config().get('video_simulations_per_day', 3)
+    print(f"[영상 자동 시뮬] {count}건 시작")
+    for i in range(count):
+        try:
+            video_simulator.run_video_simulation()
             print(f"  {i+1}/{count} 완료")
         except Exception as e:
             print(f"  오류: {e}")
@@ -943,6 +957,43 @@ def api_delete_video_case(case_id):
         return jsonify({'error': 'unauthorized'}), 403
     db.reject_video_case(case_id)
     return jsonify({'status': 'ok'})
+
+
+@app.route('/video-simulations')
+def video_simulations():
+    if not session.get('is_owner'):
+        return redirect('/')
+    sims = db.get_video_simulations(limit=50)
+    counts = db.get_video_simulation_counts()
+    return render_template('video_simulations.html', sims=sims, counts=counts)
+
+
+@app.route('/api/video-simulations/promote/<int:sim_id>', methods=['POST'])
+def api_promote_video_simulation(sim_id):
+    if not session.get('is_owner'):
+        return jsonify({'error': 'unauthorized'}), 403
+    case_id = db.promote_video_simulation(sim_id)
+    return jsonify({'status': 'ok', 'case_id': case_id})
+
+
+@app.route('/api/video-simulations/dismiss/<int:sim_id>', methods=['POST'])
+def api_dismiss_video_simulation(sim_id):
+    if not session.get('is_owner'):
+        return jsonify({'error': 'unauthorized'}), 403
+    db.dismiss_video_simulation(sim_id)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/video-simulations/run', methods=['POST'])
+def api_run_video_simulation():
+    """즉시 영상 시뮬레이션 1건 실행 (owner 전용)"""
+    if not session.get('is_owner'):
+        return jsonify({'error': 'unauthorized'}), 403
+    try:
+        result = video_simulator.run_video_simulation()
+        return jsonify({'status': 'ok', 'id': result.get('id')})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/robots.txt')
