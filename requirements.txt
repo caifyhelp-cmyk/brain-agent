@@ -4,3 +4,4 @@ APScheduler==3.11.2
 gunicorn==25.3.0
 psycopg2-binary==2.9.11
 numpy>=1.26.0
+anthropic>=0.89.0
