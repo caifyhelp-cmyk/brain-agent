@@ -405,6 +405,29 @@ def api_embedding_stats():
         return jsonify({'ok': False, 'error': str(e)})
 
 
+@app.route('/api/research', methods=['POST'])
+def api_research():
+    """웹 리서치 어시스턴트 전용 뇌 에이전트 엔드포인트.
+    Request JSON: {"situation": "리서치 주제 및 컨텍스트"}
+    Response JSON: {"ok": true, "judgment": "...", "action": "...", "reason": "..."}
+    """
+    from agent import analyze as _analyze
+    data = request.json or {}
+    situation = data.get('situation', '').strip()
+    if not situation:
+        return jsonify({'ok': False, 'error': 'situation 필드가 필요합니다.'}), 400
+    try:
+        result = _analyze(situation)
+        return jsonify({
+            'ok':       True,
+            'judgment': result.get('judgment', ''),
+            'action':   result.get('action', ''),
+            'reason':   result.get('reason', ''),
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 @app.route('/api/judge', methods=['POST'])
 def api_judge():
     """n8n CAiFY 워크플로우에서 호출하는 뇌 에이전트 판단 엔드포인트.
