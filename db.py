@@ -20,11 +20,19 @@ _USE_PG = bool(_DATABASE_URL)
 # ── 커넥션 & 쿼리 헬퍼 ───────────────────────────────────
 
 def get_conn():
+    global _USE_PG
     if _USE_PG:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(_DATABASE_URL, cursor_factory=RealDictCursor)
-        return conn
+        try:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            conn = psycopg2.connect(
+                _DATABASE_URL,
+                cursor_factory=RealDictCursor,
+                connect_timeout=5      # 5초 안에 연결 안 되면 SQLite 폴백
+            )
+            return conn
+        except Exception:
+            _USE_PG = False            # 이후 호출도 SQLite 사용
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
