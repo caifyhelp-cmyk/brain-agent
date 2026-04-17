@@ -28,7 +28,7 @@ def get_conn():
             conn = psycopg2.connect(
                 _DATABASE_URL,
                 cursor_factory=RealDictCursor,
-                connect_timeout=5      # 5초 안에 연결 안 되면 SQLite 폴백
+                connect_timeout=30     # 30초 안에 연결 안 되면 SQLite 폴백
             )
             return conn
         except Exception:
