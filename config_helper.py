@@ -16,6 +16,7 @@ def get_config() -> dict:
 
     return {
         'openai_api_key': os.environ.get('OPENAI_API_KEY') or cfg.get('openai_api_key', ''),
+        'anthropic_api_key': os.environ.get('ANTHROPIC_API_KEY') or cfg.get('anthropic_api_key', ''),
         'simulations_per_day': int(os.environ.get('SIMULATIONS_PER_DAY', cfg.get('simulations_per_day', 5))),
         'simulation_hour': int(os.environ.get('SIMULATION_HOUR', cfg.get('simulation_hour', 9))),
         'owner_pin': os.environ.get('OWNER_PIN') or cfg.get('owner_pin', '1234'),

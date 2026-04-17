@@ -1,5 +1,6 @@
 {
   "openai_api_key": "",
+  "anthropic_api_key": "",
   "simulations_per_day": 10,
   "simulation_hour": 10,
   "owner_pin": "1234"

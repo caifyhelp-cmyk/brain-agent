@@ -117,9 +117,22 @@ def evaluate_with_brain(scenario):
     client = get_client()
     patterns_data = db.get_patterns()
 
+    # 임베딩 기반 상위 100개 패턴만 선택 (TPM 한도 초과 방지)
+    try:
+        import embeddings as emb_module
+        query = f"{scenario.get('industry','')} {scenario.get('context','')} {scenario.get('goal','')}"
+        top_patterns = emb_module.search_patterns(query, top_k=100)
+        if top_patterns:
+            pattern_ids = {p['id'] for p in top_patterns}
+            filtered = [p for p in patterns_data['patterns'] if p['id'] in pattern_ids]
+        else:
+            filtered = patterns_data['patterns'][:100]
+    except Exception:
+        filtered = patterns_data['patterns'][:100]
+
     patterns_str = "\n".join([
         f"[{p['id']}] ({p['category']}) {p['rule']}"
-        for p in patterns_data['patterns']
+        for p in filtered
     ])
     axes_str = "\n".join([
         f"- {a['name']}: {a['description']}"
@@ -606,8 +619,12 @@ def compare_judgment_to_outcome(scenario, agent_judgment, actual_outcome):
 
 분석 기준:
 - match_score: 에이전트 판단 방향이 실제 성공 방향과 얼마나 일치하는가 (0~100)
+  * outcome = success: 실제 결정이 맞았으므로 에이전트가 그 방향에 가까울수록 높은 점수
+  * outcome = failure: 실제 결정이 틀렸으므로 에이전트가 실패 원인을 피하고 올바른 방향을 제시했을수록 높은 점수
+    - 즉, 실패 케이스에서 에이전트가 회사와 다른 (더 나은) 전략을 제시했으면 75+점 가능
+    - 실패 케이스에서 에이전트가 회사와 같은 잘못된 방향으로 갔으면 40점 이하
 - aligned: match_score 70 이상이고 실제 outcome이 success인 경우 true
-- what_agent_got_right: 실제 결과와 방향 일치한 판단들 — "무엇을 어떻게 잘 했는지" 구체적으로
+- what_agent_got_right: 성공 방향에 부합한 판단 (성공 케이스면 실제와 일치한 것, 실패 케이스면 회사의 실수를 피한 것)
 - what_agent_missed: 시그니처 5개 각각 체크 후 실제로 해당하는 것만 포함
 
 [what_agent_missed 작성 기준 — 엄격하게]
