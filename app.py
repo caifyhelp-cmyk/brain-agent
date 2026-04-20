@@ -1085,6 +1085,194 @@ def api_review_dismiss(req_id):
     return jsonify({'ok': True})
 
 
+# ── 포스팅 검토 ──────────────────────────────────────────
+
+def _caify_api(method: str, path: str, body: dict = None) -> dict:
+    """caify.ai API 호출 헬퍼"""
+    import urllib.request as _req
+    import urllib.error as _err
+    cfg = get_config()
+    base = cfg.get('caify_api_base', '').rstrip('/')
+    token = cfg.get('caify_api_token', '')
+    if not base:
+        return {'error': 'CAIFY_API_BASE 미설정 — 설정 페이지에서 입력하세요'}
+    url = f"{base}{path}"
+    headers = {'Content-Type': 'application/json'}
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    data = json.dumps(body).encode() if body else None
+    req = _req.Request(url, data=data, headers=headers, method=method)
+    try:
+        with _req.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode())
+    except _err.HTTPError as e:
+        return {'error': f'HTTP {e.code}: {e.read().decode()[:200]}'}
+    except Exception as e:
+        return {'error': str(e)}
+
+
+@app.route('/posts')
+def posts_page():
+    if not session.get('is_owner'):
+        return redirect(url_for('chat_start'))
+    pending = db.get_pending_pattern_request_count()
+    return render_template('posts.html', pending=pending)
+
+
+@app.route('/api/posts/list')
+def api_posts_list():
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    result = _caify_api('GET', '/admin/posts')
+    if 'error' in result:
+        return jsonify({'ok': False, 'error': result['error']})
+    posts = result if isinstance(result, list) else result.get('posts', [])
+    pending_posts = [p for p in posts if p.get('status', 0) in (0, 1)]
+    return jsonify({'ok': True, 'posts': pending_posts})
+
+
+@app.route('/api/posts/<int:post_id>/analyze', methods=['POST'])
+def api_post_analyze(post_id):
+    """포스팅 LLM 분석 — SSE 스트리밍"""
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+
+    from openai import OpenAI as _OAI
+    data = request.json or {}
+    title = data.get('title', '')
+    html_content = data.get('html', '')
+
+    cfg = get_config()
+    client = _OAI(api_key=cfg.get('openai_api_key', ''))
+
+    prompt = f"""아래 네이버 블로그 포스팅을 검토해라.
+
+제목: {title}
+
+본문 (HTML):
+{html_content[:3000]}
+
+다음 기준으로 평가하라:
+1. **SEO** — 제목·본문 키워드 일치도, 검색 의도 부합 여부
+2. **가독성** — 문장 흐름, 단락 구성, 소제목 구조
+3. **설득력** — CTA 위치·강도, 독자 행동 유도
+4. **종합 판단** — 발행 바로 가능 / 수정 후 발행 / 재작성 권장
+
+간결하게 평가하고, 수정 필요 부분은 구체적으로 짚어줘."""
+
+    def generate():
+        try:
+            stream = client.chat.completions.create(
+                model='gpt-4o',
+                messages=[{'role': 'user', 'content': prompt}],
+                max_tokens=600, temperature=0.3, stream=True
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ''
+                if delta:
+                    yield f"data: {json.dumps({'text': delta}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(stream_with_context(generate()),
+                    mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.route('/api/posts/<int:post_id>/chat', methods=['POST'])
+def api_post_chat(post_id):
+    """대화형 포스팅 수정 — SSE 스트리밍"""
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+
+    from openai import OpenAI as _OAI
+    data = request.json or {}
+    user_message = data.get('message', '').strip()
+    title        = data.get('title', '')
+    current_html = data.get('html', '')
+    history      = data.get('history', [])
+
+    if not user_message:
+        return jsonify({'ok': False, 'error': '메시지 없음'})
+
+    cfg = get_config()
+    client = _OAI(api_key=cfg.get('openai_api_key', ''))
+
+    system = f"""너는 네이버 블로그 포스팅 편집자다.
+현재 편집 중인 포스팅:
+
+제목: {title}
+
+현재 HTML:
+{current_html[:3000]}
+
+규칙:
+- 수정 요청이 명확하면 수정된 HTML 전체를 ```html 코드블록으로 반환
+- 의도가 불분명하면 먼저 질문
+- 발행 판단 질문에는 솔직하게 평가
+- 짧고 대화체로"""
+
+    messages = [{'role': 'system', 'content': system}]
+    for h in history[-6:]:
+        messages.append({'role': h['role'], 'content': h['content']})
+    messages.append({'role': 'user', 'content': user_message})
+
+    def generate():
+        try:
+            stream = client.chat.completions.create(
+                model='gpt-4o',
+                messages=messages,
+                max_tokens=2000, temperature=0.4, stream=True
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ''
+                if delta:
+                    yield f"data: {json.dumps({'text': delta}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(stream_with_context(generate()),
+                    mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.route('/api/posts/<int:post_id>/update', methods=['POST'])
+def api_post_update(post_id):
+    """포스팅 내용 수정 저장"""
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    data = request.json or {}
+    result = _caify_api('PATCH', f'/api/posts/{post_id}',
+                        {'title': data.get('title'), 'html': data.get('html')})
+    if 'error' in result:
+        return jsonify({'ok': False, 'error': result['error']})
+    return jsonify({'ok': True})
+
+
+@app.route('/api/posts/<int:post_id>/approve', methods=['POST'])
+def api_post_approve(post_id):
+    """발행 승인 — status → 1 (Flutter/Electron이 자동 발행)"""
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    result = _caify_api('POST', f'/admin/posts/{post_id}/approve')
+    if 'error' in result:
+        return jsonify({'ok': False, 'error': result['error']})
+    return jsonify({'ok': True})
+
+
+@app.route('/api/posts/<int:post_id>/reject', methods=['POST'])
+def api_post_reject(post_id):
+    """포스팅 반려"""
+    if not session.get('is_owner'):
+        return jsonify({'ok': False, 'error': '권한 없음'})
+    result = _caify_api('POST', f'/api/posts/{post_id}/reject')
+    if 'error' in result:
+        return jsonify({'ok': False, 'error': result['error']})
+    return jsonify({'ok': True})
+
+
 # ── MCP 서버 (Claude.ai 웹 연동) ────────────────────────
 
 _mcp_sessions: dict = {}  # {session_id: Queue}

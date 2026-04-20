@@ -15,6 +15,10 @@ services:
         fromDatabase:
           name: brain-agent-db
           property: connectionString
+      - key: CAIFY_API_BASE
+        sync: false
+      - key: CAIFY_API_TOKEN
+        sync: false
 
 databases:
   - name: brain-agent-db

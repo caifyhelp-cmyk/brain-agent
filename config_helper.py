@@ -20,4 +20,6 @@ def get_config() -> dict:
         'simulations_per_day': int(os.environ.get('SIMULATIONS_PER_DAY', cfg.get('simulations_per_day', 5))),
         'simulation_hour': int(os.environ.get('SIMULATION_HOUR', cfg.get('simulation_hour', 9))),
         'owner_pin': os.environ.get('OWNER_PIN') or cfg.get('owner_pin', '1234'),
+        'caify_api_base': os.environ.get('CAIFY_API_BASE') or cfg.get('caify_api_base', ''),
+        'caify_api_token': os.environ.get('CAIFY_API_TOKEN') or cfg.get('caify_api_token', ''),
     }
