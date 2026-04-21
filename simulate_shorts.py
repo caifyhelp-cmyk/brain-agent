@@ -25,7 +25,7 @@ def claude_generate(system_prompt: str, user_content: str, max_tokens: int = 160
         model='claude-opus-4-6',
         max_tokens=max_tokens,
         thinking={
-            'type': 'adaptive'
+            'type': 'enabled', 'budget_tokens': 5000
         },
         messages=[
             {'role': 'user', 'content': system_prompt + "\n\n" + user_content}
