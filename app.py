@@ -590,7 +590,7 @@ def api_blog_judge():
         from openai import OpenAI
         from config_helper import get_config
 
-        patterns_str = _get_relevant_patterns(situation)
+        patterns_str, _ = _get_relevant_patterns(situation)
         client = OpenAI(api_key=get_config().get('openai_api_key'))
 
         # STEP 1: 키워드 결정
