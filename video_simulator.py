@@ -209,8 +209,7 @@ def run_pipeline(brand: dict) -> dict:
     try:
         r2_resp = cld.messages.create(
             model='claude-opus-4-6',
-            max_tokens=6000,
-            thinking={'type': 'enabled', 'budget_tokens': 3000},
+            max_tokens=3000,
             messages=[{
                 'role': 'user',
                 'content': r2_system + f"\n\n[브랜드 정보]\n{brand_info}\n\n[1차 기획안]\n{draft}"

@@ -321,8 +321,7 @@ def video_plan_brain(brain_output: dict, brand_info: str, banned_patterns: str) 
 
     resp = claude_client.messages.create(
         model='claude-opus-4-6',
-        max_tokens=8000,
-        thinking={'type': 'enabled', 'budget_tokens': 4000},
+        max_tokens=4000,
         messages=[{'role': 'user', 'content': system_prompt + "\n\n" + brand_info}]
     )
     for block in resp.content:
