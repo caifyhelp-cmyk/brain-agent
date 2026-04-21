@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "thinking_brain.db"
 PATTERNS_PATH = BASE_DIR / "brain" / "patterns.json"
 
-# Render가 제공하는 PostgreSQL URL (없으면 SQLite 사용)
+# Render가 제공하는 PostgreSQL URL (없으면 로컬 SQLite 사용)
 _DATABASE_URL = os.environ.get('DATABASE_URL', '')
 if _DATABASE_URL.startswith('postgres://'):
     _DATABASE_URL = _DATABASE_URL.replace('postgres://', 'postgresql://', 1)
@@ -20,19 +20,18 @@ _USE_PG = bool(_DATABASE_URL)
 # ── 커넥션 & 쿼리 헬퍼 ───────────────────────────────────
 
 def get_conn():
-    global _USE_PG
     if _USE_PG:
-        try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
-            conn = psycopg2.connect(
-                _DATABASE_URL,
-                cursor_factory=RealDictCursor,
-                connect_timeout=30     # 30초 안에 연결 안 되면 SQLite 폴백
-            )
-            return conn
-        except Exception:
-            _USE_PG = False            # 이후 호출도 SQLite 사용
+        # PostgreSQL 환경(Render)에서는 SQLite 폴백 없음
+        # — 폴백 시 데이터가 임시 파일에 쌓이다 배포 때 전부 소실되기 때문
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        conn = psycopg2.connect(
+            _DATABASE_URL,
+            cursor_factory=RealDictCursor,
+            connect_timeout=30
+        )
+        return conn
+    # 로컬 개발: SQLite
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
