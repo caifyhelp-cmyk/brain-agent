@@ -388,7 +388,7 @@ def analyze(situation: str) -> dict:
     client = OpenAI(api_key=get_config().get('openai_api_key'))
 
     # 임베딩으로 관련 패턴 검색
-    patterns_str = _get_relevant_patterns(situation)
+    patterns_str, patterns_list = _get_relevant_patterns(situation)
 
     system_prompt = SYSTEM_TEMPLATE.format(patterns=patterns_str)
 
@@ -405,34 +405,42 @@ def analyze(situation: str) -> dict:
 
     raw = response.choices[0].message.content
     try:
-        return json.loads(raw)
+        result = json.loads(raw)
+        result['matched_patterns'] = patterns_list
+        return result
     except Exception:
-        # JSON 파싱 실패 시 raw 텍스트에서 추출
         return {
             'judgment': '',
             'reason': '',
             'action': '',
             'creative_approach': 'light_twist',
             'approach_reason': '',
+            'matched_patterns': patterns_list,
             'raw': raw
         }
 
 
-def _get_relevant_patterns(situation: str) -> str:
-    """임베딩 서치로 관련 패턴 추출. 실패 시 핵심 카테고리 폴백."""
+def _get_relevant_patterns(situation: str):
+    """임베딩 서치로 관련 패턴 추출. (patterns_str, patterns_list) 튜플 반환."""
+    def _is_principle(rule: str) -> bool:
+        return not any(kw in rule for kw in ['미흡', '부재', '실패로', '과소평가'])
+
     try:
         import embeddings
         patterns = embeddings.search_patterns(situation, top_k=80)
         if patterns:
-            by_cat: dict = {}
+            patterns = [p for p in patterns if _is_principle(p['rule'])]
+            by_cat = {}
             for p in patterns:
                 by_cat.setdefault(p['category'], []).append(p['rule'])
             lines = []
+            patterns_list = []
             for cat, rules in by_cat.items():
                 lines.append(f"[{cat}]")
                 for r in rules:
                     lines.append(f"  - {r[:150]}")
-            return "\n".join(lines)
+                    patterns_list.append({'category': cat, 'rule': r})
+            return "\n".join(lines), patterns_list
     except Exception as e:
         print(f"[agent] 임베딩 서치 실패, 폴백: {e}")
 
@@ -451,14 +459,16 @@ def _get_relevant_patterns(situation: str) -> str:
             list(sig_cats)
         )
         conn.close()
-        by_cat: dict = {}
+        by_cat = {}
         for r in rows:
             by_cat.setdefault(r['category'], []).append(r['rule'])
         lines = []
+        patterns_list = []
         for cat, rules in by_cat.items():
             lines.append(f"[{cat}]")
             for r in rules:
                 lines.append(f"  - {r[:150]}")
-        return "\n".join(lines)
+                patterns_list.append({'category': cat, 'rule': r})
+        return "\n".join(lines), patterns_list
     except Exception:
-        return ""
+        return "", []

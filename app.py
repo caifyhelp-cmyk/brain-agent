@@ -418,11 +418,24 @@ def api_research():
         return jsonify({'ok': False, 'error': 'situation 필드가 필요합니다.'}), 400
     try:
         result = _analyze(situation)
+        # matched_patterns: [{category, rule}, ...] 형태
+        raw_patterns = result.get('matched_patterns', [])
+        # 케이스스터디형 필터링 후 카테고리별 그룹핑 (최대 카테고리 4개, 각 8개)
+        from collections import defaultdict
+        by_cat = defaultdict(list)
+        for p in raw_patterns:
+            if not any(kw in p.get('rule','') for kw in ['메에스트로','부재','실패로']):
+                by_cat[p['category']].append(p['rule'])
+        top_cats = sorted(by_cat, key=lambda c: len(by_cat[c]), reverse=True)[:4]
+        patterns_formatted = []
+        for cat in top_cats:
+            patterns_formatted.append({'category': cat, 'rules': by_cat[cat][:8]})
         return jsonify({
-            'ok':       True,
-            'judgment': result.get('judgment', ''),
-            'action':   result.get('action', ''),
-            'reason':   result.get('reason', ''),
+            'ok':              True,
+            'judgment':        result.get('judgment', ''),
+            'action':          result.get('action', ''),
+            'reason':          result.get('reason', ''),
+            'patterns':        patterns_formatted,
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
