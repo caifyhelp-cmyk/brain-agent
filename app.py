@@ -25,6 +25,14 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = os.environ.get('SECRET_KEY', 'brain-agent-secret-2024')
 
+import traceback as _traceback
+
+@app.errorhandler(Exception)
+def _handle_all_exceptions(e):
+    tb = _traceback.format_exc()
+    print(f"[UNHANDLED] {type(e).__name__}: {e}\n{tb}")
+    return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+
 # gunicorn으로 실행 시에도 DB 초기화
 db.init_db()
 
