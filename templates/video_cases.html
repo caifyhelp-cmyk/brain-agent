@@ -3,42 +3,65 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>뇌 에이전트 — 영상 기획 케이스</title>
+<title>뇌 에이전트 — 결과 케이스</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
 
-  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
-  nav .logo { font-weight: 700; font-size: 15px; color: #fff; }
-  nav a { color: #888; text-decoration: none; font-size: 14px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; }
+  nav { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 0 24px; display: flex; align-items: center; gap: 24px; height: 56px; overflow-x: auto; }
+  nav .logo { font-weight: 700; font-size: 15px; color: #fff; white-space: nowrap; }
+  nav a { color: #888; text-decoration: none; font-size: 13px; padding: 4px 0; border-bottom: 2px solid transparent; transition: color 0.15s; white-space: nowrap; }
   nav a:hover { color: #fff; }
-  nav a.active { color: #fff; border-bottom-color: #6c63ff; }
+  nav a.active { color: #ff9f43; border-bottom-color: #ff9f43; }
 
-  main { padding: 32px; max-width: 960px; margin: 0 auto; }
+  main { padding: 32px; max-width: 1000px; margin: 0 auto; }
 
-  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-  h1 { font-size: 20px; font-weight: 700; color: #fff; }
-  .count { font-size: 13px; color: #888; }
+  .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
+  .page-header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+  .page-meta { font-size: 13px; color: #666; margin-top: 4px; }
 
-  .case-list { display: flex; flex-direction: column; gap: 12px; }
+  /* 서브탭 */
+  .subtabs { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid #2a2a3a; }
+  .subtabs a { padding: 10px 18px; font-size: 13px; color: #666; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+  .subtabs a:hover { color: #ccc; }
+  .subtabs a.active { color: #ff9f43; border-bottom-color: #ff9f43; font-weight: 600; }
 
-  .case-item { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; display: flex; gap: 16px; align-items: flex-start; }
-  .case-item.deleted { opacity: 0.3; pointer-events: none; }
+  /* 케이스 카드 */
+  .case-list { display: flex; flex-direction: column; gap: 16px; }
 
-  .case-num { font-size: 12px; color: #555; font-weight: 600; min-width: 28px; padding-top: 2px; }
+  .case-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; overflow: hidden; }
+  .case-card.dismissed { opacity: 0.3; pointer-events: none; }
 
-  .case-body { flex: 1; }
-  .case-industry { font-size: 12px; color: #6c63ff; font-weight: 600; margin-bottom: 6px; }
-  .case-boring { font-size: 12px; color: #666; margin-bottom: 8px; }
-  .case-boring span { color: #888; }
-  .case-plan { font-size: 14px; color: #ddd; line-height: 1.6; }
+  .case-header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #2a2a3a; cursor: pointer; user-select: none; }
+  .case-header:hover { background: #1f1f2e; }
+  .case-num { font-size: 11px; color: #555; font-weight: 700; min-width: 28px; }
+  .case-title { flex: 1; }
+  .case-brand { font-size: 14px; font-weight: 600; color: #fff; }
+  .case-industry { font-size: 12px; color: #ff9f43; margin-top: 2px; }
+  .case-date { font-size: 11px; color: #444; white-space: nowrap; }
+  .chevron { color: #444; font-size: 12px; transition: transform 0.2s; }
+  .case-card.open .chevron { transform: rotate(180deg); }
 
-  .case-meta { font-size: 11px; color: #444; margin-top: 8px; }
+  /* 상세 내용 */
+  .case-body { display: none; padding: 20px; }
+  .case-card.open .case-body { display: block; }
 
-  .btn-delete { background: none; border: 1px solid #3a2a2a; color: #884444; border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-  .btn-delete:hover { background: #ff6b6b22; border-color: #ff6b6b44; color: #ff6b6b; }
+  .brand-info { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .brand-tag { background: #252535; border: 1px solid #333; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #aaa; }
+  .brand-tag span { color: #666; margin-right: 4px; }
 
-  .empty { text-align: center; padding: 60px; color: #555; font-size: 14px; }
+  .plan-section { margin-bottom: 16px; }
+  .plan-label { font-size: 11px; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .plan-text { font-size: 13px; color: #ccc; line-height: 1.75; white-space: pre-wrap; background: #13131a; border: 1px solid #252535; border-radius: 8px; padding: 14px 16px; }
+  .plan-text.final { border-color: #ff9f4344; color: #ddd; }
+
+  .case-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .btn { border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+  .btn-del { background: none; border-color: #3a2a2a; color: #884444; }
+  .btn-del:hover { background: #ff6b6b22; border-color: #ff6b6b44; color: #ff6b6b; }
+
+  .empty { text-align: center; padding: 80px; color: #555; font-size: 14px; }
+  .empty a { color: #ff9f43; text-decoration: none; }
 </style>
 </head>
 <body>
@@ -54,41 +77,92 @@
   <a href="/mine" style="color:#fcc419;">마이닝</a>
   <a href="/ask" style="color:#51cf66;font-weight:700;">판단 요청</a>
   <a href="/video-simulations" style="color:#ff9f43;">영상 기획</a>
+  <a href="/video-cases" class="active">결과 케이스</a>
   <a href="/setup">설정</a>
 </nav>
 
 <main>
-  <div class="header">
-    <h1>영상 기획 케이스</h1>
-    <span class="count">총 {{ counts.approved }}개</span>
+  <div class="page-header">
+    <div>
+      <h1>결과 케이스</h1>
+      <p class="page-meta">승인된 영상 기획 · 총 {{ cases|length }}건</p>
+    </div>
+  </div>
+
+  <div class="subtabs">
+    <a href="/video-simulations">시뮬레이터</a>
+    <a href="/video-cases" class="active">결과 케이스</a>
   </div>
 
   {% if cases %}
   <div class="case-list">
     {% for c in cases %}
-    <div class="case-item" id="case-{{ c.id }}">
-      <div class="case-num">#{{ c.id }}</div>
-      <div class="case-body">
-        <div class="case-industry">{{ c.industry }}</div>
-        <div class="case-boring"><span>뻔한방향:</span> {{ c.boring_direction }}</div>
-        <div class="case-plan">{{ c.plan }}</div>
-        <div class="case-meta">{{ c.source }} · {{ c.created_at[:10] if c.created_at else '' }}</div>
+    <div class="case-card" id="card-{{ c.id }}" onclick="toggleCard({{ c.id }}, event)">
+      <div class="case-header">
+        <div class="case-num">#{{ loop.index }}</div>
+        <div class="case-title">
+          <div class="case-brand">{{ c.brand.brand_name if c.brand else '알 수 없음' }}</div>
+          <div class="case-industry">{{ c.brand.industry if c.brand else '' }}</div>
+        </div>
+        <div class="case-date">{{ c.created_at[:10] if c.created_at else '' }}</div>
+        <div class="chevron">▼</div>
       </div>
-      <button class="btn-delete" onclick="deleteCase({{ c.id }})">삭제</button>
+      <div class="case-body">
+        <div class="brand-info">
+          {% if c.brand %}
+          <div class="brand-tag"><span>상품</span>{{ c.brand.product_name or '-' }}</div>
+          <div class="brand-tag"><span>타겟</span>{{ c.brand.target or '-' }}</div>
+          <div class="brand-tag"><span>톤</span>{{ c.brand.tone or '-' }}</div>
+          <div class="brand-tag"><span>강점</span>{{ c.brand.core_strength or '-' }}</div>
+          {% endif %}
+        </div>
+
+        {% if c.draft %}
+        <div class="plan-section">
+          <div class="plan-label">1차 초안</div>
+          <div class="plan-text">{{ c.draft }}</div>
+        </div>
+        {% endif %}
+
+        {% if c.round2 and c.round2 != c.draft %}
+        <div class="plan-section">
+          <div class="plan-label">2차 재설계</div>
+          <div class="plan-text">{{ c.round2 }}</div>
+        </div>
+        {% endif %}
+
+        <div class="plan-section">
+          <div class="plan-label">최종 기획안</div>
+          <div class="plan-text final">{{ c.final_plan }}</div>
+        </div>
+
+        <div class="case-actions">
+          <button class="btn btn-del" onclick="deleteCase({{ c.id }}, event)">삭제</button>
+        </div>
+      </div>
     </div>
     {% endfor %}
   </div>
   {% else %}
-  <div class="empty">케이스가 없어요.</div>
+  <div class="empty">
+    아직 저장된 결과 케이스가 없어요.<br><br>
+    <a href="/video-simulations">→ 시뮬레이터에서 승인해보세요</a>
+  </div>
   {% endif %}
 </main>
 
 <script>
-async function deleteCase(id) {
+function toggleCard(id, e) {
+  if (e.target.closest('button')) return;
+  document.getElementById(`card-${id}`).classList.toggle('open');
+}
+
+async function deleteCase(id, e) {
+  e.stopPropagation();
   if (!confirm('이 케이스를 삭제할까요?')) return;
   const res = await fetch(`/api/video-cases/delete/${id}`, { method: 'POST' });
   if (res.ok) {
-    document.getElementById(`case-${id}`).classList.add('deleted');
+    document.getElementById(`card-${id}`).classList.add('dismissed');
   }
 }
 </script>

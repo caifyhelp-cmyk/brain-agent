@@ -815,7 +815,7 @@ def get_video_simulations(limit: int = 20) -> list:
 
 
 def promote_video_simulation(sim_id: int) -> int:
-    """시뮬레이션 결과 → video_cases 승인"""
+    """시뮬레이션 결과 → video_cases 승인 + brain/video_cases.json 저장"""
     conn = get_conn()
     ph = _ph()
     row = _fetchone(conn, f'SELECT * FROM video_simulations WHERE id={ph}', [sim_id])
@@ -839,7 +839,46 @@ def promote_video_simulation(sim_id: int) -> int:
     conn = get_conn()
     _exec(conn, f"UPDATE video_simulations SET status='approved' WHERE id={ph}", [sim_id])
     conn.close()
+
+    # brain/video_cases.json에 누적 저장 (GitHub 백업용)
+    try:
+        json_path = BASE_DIR / 'brain' / 'video_cases.json'
+        existing = []
+        if json_path.exists():
+            with open(json_path, 'r', encoding='utf-8') as f:
+                existing = json.load(f)
+        existing.append({
+            'id': case_id,
+            'sim_id': sim_id,
+            'brand_name': brand.get('brand_name', ''),
+            'industry': brand.get('industry', ''),
+            'product': brand.get('product_name', ''),
+            'target': brand.get('target', ''),
+            'tone': brand.get('tone', ''),
+            'boring_direction': boring_dir,
+            'draft': row.get('draft', ''),
+            'round2': row.get('round2', ''),
+            'final_plan': row['final_plan'],
+            'created_at': row.get('created_at', ''),
+        })
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f'[video_cases.json 저장 실패] {e}')
+
     return case_id
+
+
+def get_approved_video_simulations(limit: int = 200) -> list:
+    """승인된 시뮬레이션 전체 데이터 반환 (결과 케이스 페이지용)"""
+    conn = get_conn()
+    rows = _fetchall(conn,
+        f"SELECT * FROM video_simulations WHERE status='approved' ORDER BY created_at DESC LIMIT {limit}")
+    conn.close()
+    for r in rows:
+        r['brand'] = json.loads(r['brand_json'])
+        r['brain_judgment'] = json.loads(r['brain_judgment_json'])
+    return rows
 
 
 def dismiss_video_simulation(sim_id: int):

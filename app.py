@@ -1377,7 +1377,7 @@ def _mcp_handle(method, params, msg_id):
 
 @app.route('/video-cases')
 def video_cases():
-    cases = db.get_approved_video_cases()
+    cases = db.get_approved_video_simulations()
     counts = db.get_video_case_counts()
     return render_template('video_cases.html', cases=cases, counts=counts)
 
