@@ -177,7 +177,7 @@ def run_pipeline(brand: dict) -> dict:
     # STEP 1: 경쟁 소거
     try:
         prohibit_resp = oai.chat.completions.create(
-            model='gpt-4o',
+            model='gpt-4.1',
             messages=[
                 {'role': 'system', 'content': PROHIBITION_SYSTEM},
                 {'role': 'user', 'content': f"업종: {brand['industry']}\n상품/서비스: {brand['product_name']}"}
@@ -208,7 +208,7 @@ def run_pipeline(brand: dict) -> dict:
     )
     try:
         r2_resp = cld.messages.create(
-            model='claude-opus-4-6',
+            model='claude-sonnet-4-6',
             max_tokens=3000,
             messages=[{
                 'role': 'user',
@@ -222,7 +222,7 @@ def run_pipeline(brand: dict) -> dict:
     # STEP 5: 장면 완성 (GPT-4o)
     try:
         r3 = oai.chat.completions.create(
-            model='gpt-4o',
+            model='gpt-4.1',
             messages=[
                 {'role': 'system', 'content': ROUND3_SYSTEM},
                 {'role': 'user', 'content': f"[브랜드 정보]\n{brand_info}\n\n[2차 재설계안]\n{round2}"}
